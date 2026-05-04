@@ -1,0 +1,181 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  supabaseId   String   @unique
+  email        String   @unique
+  name         String
+  avatar       String?
+  role         Role     @default(EMPLOYEE)
+  department   String?
+  designation  String?
+  phone        String?
+  bio          String?
+  linkedinUrl  String?
+  twitterUrl   String?
+  githubUrl    String?
+  websiteUrl   String?
+  joinedAt     DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  tasks        Task[]         @relation("assignedTo")
+  createdTasks Task[]         @relation("createdBy")
+  leaveRequests LeaveRequest[]
+  messages     Message[]
+  documents    Document[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  assigneeId  String?
+  assignee    User?      @relation("assignedTo", fields: [assigneeId], references: [id])
+  creatorId   String
+  creator     User       @relation("createdBy", fields: [creatorId], references: [id])
+  tags        String[]
+  attachments String[]
+  order       Int        @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  type       LeaveType
+  startDate  DateTime
+  endDate    DateTime
+  reason     String
+  status     LeaveStatus @default(PENDING)
+  approvedBy String?
+  comments   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum LeaveType {
+  SICK
+  CASUAL
+  EARNED
+  MATERNITY
+  PATERNITY
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  channelId String
+  channel   Channel     @relation(fields: [channelId], references: [id])
+  senderId  String
+  sender    User        @relation(fields: [senderId], references: [id])
+  content   String
+  type      MessageType @default(TEXT)
+  fileUrl   String?
+
+  createdAt DateTime  @default(now())
+  editedAt  DateTime?
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}
+
+model Channel {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  isPrivate   Boolean   @default(false)
+  messages    Message[]
+
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id       String  @id @default(cuid())
+  title    String
+  content  String  @db.Text
+  authorId String
+  author   User    @relation(fields: [authorId], references: [id])
+  isPublic Boolean @default(false)
+  tags     String[]
+  fileUrl  String?
+  version  Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+  id        String    @id @default(cuid())
+  title     String
+  body      String    @db.Text
+  authorId  String
+  priority  Priority  @default(MEDIUM)
+  pinned    Boolean   @default(false)
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id])
+  title  String
+  body   String
+  type   String
+  read   Boolean @default(false)
+  link   String?
+
+  createdAt DateTime @default(now())
+}
