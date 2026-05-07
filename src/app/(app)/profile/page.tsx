@@ -8,7 +8,7 @@ import { z } from 'zod';
 import {
   User, Mail, Phone, Building2, Briefcase, Save,
   Camera, Globe,
-  CheckSquare, Calendar, FileText, Edit3, X, Link2,
+  CheckSquare, Calendar, FileText, Edit3, Link2,
   Shield, Clock,
 } from 'lucide-react';
 
@@ -33,7 +33,7 @@ const GithubIcon = ({ size = 15, className = '' }: { size?: number; className?: 
 import { trpc } from '@/lib/trpc/client';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { fadeUp, staggerContainer, scaleIn } from '@/lib/animations';
+import { fadeUp, staggerContainer } from '@/lib/animations';
 import { format } from 'date-fns';
 
 const profileSchema = z.object({
@@ -258,11 +258,11 @@ export default function ProfilePage() {
         designation: meData.designation ?? '',
         department: meData.department ?? '',
         phone: meData.phone ?? '',
-        bio: (meData as any).bio ?? '',
-        linkedinUrl: (meData as any).linkedinUrl ?? '',
-        twitterUrl: (meData as any).twitterUrl ?? '',
-        githubUrl: (meData as any).githubUrl ?? '',
-        websiteUrl: (meData as any).websiteUrl ?? '',
+        bio: meData.bio ?? '',
+        linkedinUrl: meData.linkedinUrl ?? '',
+        twitterUrl: meData.twitterUrl ?? '',
+        githubUrl: meData.githubUrl ?? '',
+        websiteUrl: meData.websiteUrl ?? '',
       });
       setAvatarUrl(meData.avatar ?? null);
     }
@@ -303,10 +303,10 @@ export default function ProfilePage() {
 
   // Build display social links from current data
   const currentSocials = {
-    linkedinUrl: (meData as any)?.linkedinUrl,
-    twitterUrl: (meData as any)?.twitterUrl,
-    githubUrl: (meData as any)?.githubUrl,
-    websiteUrl: (meData as any)?.websiteUrl,
+    linkedinUrl: meData?.linkedinUrl,
+    twitterUrl: meData?.twitterUrl,
+    githubUrl: meData?.githubUrl,
+    websiteUrl: meData?.websiteUrl,
   };
 
   return (
@@ -369,9 +369,9 @@ export default function ProfilePage() {
               </div>
 
               {/* Bio preview */}
-              {(meData as any)?.bio && (
+              {meData?.bio && (
                 <p className="text-zinc-400 text-sm mt-3 max-w-md leading-relaxed">
-                  {(meData as any).bio}
+                  {meData.bio}
                 </p>
               )}
 

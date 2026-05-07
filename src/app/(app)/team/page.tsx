@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import { Search, Mail, Phone, Building2 } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { fadeUp, staggerContainer } from '@/lib/animations';
-import { getInitials } from '@/lib/utils';
 import type { User } from '@/types';
 
 const departments = [

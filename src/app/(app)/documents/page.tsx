@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Search, FileText, Globe, Lock, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, FileText, Globe, Lock, Trash2 } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { toast } from 'sonner';
 import { fadeUp, staggerContainer, modalVariants, backdropVariants } from '@/lib/animations';
@@ -23,7 +23,7 @@ export default function DocumentsPage() {
   });
 
   const createDoc = trpc.documents.create.useMutation({
-    onSuccess: (doc) => {
+    onSuccess: () => {
       toast.success('Document created!');
       utils.documents.list.invalidate();
       setCreateModalOpen(false);

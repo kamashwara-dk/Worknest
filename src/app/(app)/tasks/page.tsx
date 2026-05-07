@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, LayoutGrid, List, Filter, Search } from 'lucide-react';
+import { Plus, LayoutGrid, List, Search } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { KanbanBoard } from '@/components/tasks/KanbanBoard';
 import { TaskModal } from '@/components/tasks/TaskModal';

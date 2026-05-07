@@ -7,7 +7,6 @@ import { useNotificationStore } from '@/store/useNotificationStore';
 import { trpc } from '@/lib/trpc/client';
 import { formatRelativeTime } from '@/lib/utils';
 import { notificationPanelVariants } from '@/lib/animations';
-import Link from 'next/link';
 
 export function NotificationPanel() {
   const { notificationPanelOpen, setNotificationPanelOpen } = useUIStore();

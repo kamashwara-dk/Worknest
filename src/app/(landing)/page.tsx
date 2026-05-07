@@ -7,7 +7,6 @@ import { HeroSection } from '@/components/landing/HeroSection';
 import { FeaturesSection } from '@/components/landing/FeaturesSection';
 import { TestimonialsSection } from '@/components/landing/TestimonialsSection';
 import { CTASection } from '@/components/landing/CTASection';
-import Link from 'next/link';
 
 const GithubIcon = () => (
   <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
@@ -83,20 +82,34 @@ function Footer() {
 
 export default function LandingPage() {
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [redirecting, setRedirecting] = useState(false);
+  const [redirecting] = useState(() => {
+    // Check synchronously on first render (SSR-safe: window may not exist)
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).has('code');
+    }
+    return false;
+  });
 
+  // Handle OAuth code landing on root path (misconfigured Supabase redirect URL)
   useEffect(() => {
-    // If Supabase redirected back here with an OAuth code (misconfigured redirect URL),
-    // forward it to the proper callback route so the session can be established.
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     if (code) {
-      setRedirecting(true);
       const next = params.get('next') ?? '/dashboard';
       window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`);
-      return;
     }
   }, []);
+
+  useEffect(() => {
+    if (redirecting) return;
+    const handleScroll = () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
+      setScrollProgress(progress);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [redirecting]);
 
   if (redirecting) {
     return (
@@ -108,16 +121,6 @@ export default function LandingPage() {
       </div>
     );
   }
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
-      setScrollProgress(progress);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   return (
     <main className="bg-background">

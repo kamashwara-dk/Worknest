@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
-import { subDays, startOfDay, endOfDay, eachDayOfInterval, format } from 'date-fns';
+import { subDays, eachDayOfInterval, format } from 'date-fns';
 
 export const analyticsRouter = createTRPCRouter({
   overview: protectedProcedure

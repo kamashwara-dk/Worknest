@@ -12,7 +12,6 @@ import {
   DragOverlay,
   closestCorners,
 } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
 import { trpc } from '@/lib/trpc/client';

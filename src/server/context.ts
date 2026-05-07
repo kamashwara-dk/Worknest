@@ -1,9 +1,8 @@
-import { type FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import type { User } from '@prisma/client';
 
-export async function createContext(opts: FetchCreateContextFnOptions) {
+export async function createContext() {
   const supabase = await createClient();
   const {
     data: { user },

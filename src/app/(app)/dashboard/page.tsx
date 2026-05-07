@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { CheckSquare, Calendar, MessageSquare, Users, Plus, TrendingUp } from 'lucide-react';
+import { CheckSquare, Calendar, Users, Plus, TrendingUp } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { fadeUp, staggerContainer } from '@/lib/animations';
 import { formatDate, getPriorityColor, getLeaveStatusColor } from '@/lib/utils';
@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const { data: leavesData } = trpc.leaves.list.useQuery({ status: 'PENDING' });
   const { data: announcementsData } = trpc.announcements.list.useQuery({ pinned: true, limit: 2 });
   const { data: analyticsData } = trpc.analytics.overview.useQuery();
-  const { data: usersData } = trpc.users.list.useQuery();
+  trpc.users.list.useQuery(); // prefetch team data
   const { data: tasksByPriority } = trpc.analytics.tasksByPriority.useQuery();
 
   const hour = new Date().getHours();
