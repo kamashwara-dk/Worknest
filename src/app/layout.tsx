@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   title: "WorkNest — Your team's daily command center",
   description: 'Tasks, messages, leaves, and documents — unified for your entire team.',
   keywords: ['productivity', 'team', 'tasks', 'collaboration', 'workplace'],
+  icons: {
+    icon: '/worknest-icon.svg',
+    shortcut: '/worknest-icon.svg',
+    apple: '/worknest-icon.svg',
+  },
   openGraph: {
     title: 'WorkNest',
     description: "Your team's daily command center.",

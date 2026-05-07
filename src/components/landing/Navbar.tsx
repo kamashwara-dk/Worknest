@@ -39,7 +39,7 @@ export function Navbar() {
               <span className="font-display font-bold text-white text-sm">W</span>
             </div>
             <span className="font-display font-bold text-[#E8F0F8] text-lg">
-              ork<span className="text-[#178582]">Nest</span>
+              Work<span className="text-[#178582]">Nest</span>
             </span>
           </Link>
 

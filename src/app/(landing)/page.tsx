@@ -44,7 +44,7 @@ function Footer() {
                 <span className="font-display font-bold text-white text-sm">W</span>
               </div>
               <span className="font-display font-bold text-white text-lg">
-                ork<span className="text-primary">Nest</span>
+                Work<span className="text-primary">Nest</span>
               </span>
             </div>
             <p className="text-zinc-500 text-sm leading-relaxed">
