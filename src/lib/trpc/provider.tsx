@@ -5,6 +5,7 @@ import { httpBatchLink, loggerLink } from '@trpc/client';
 import { useState } from 'react';
 import superjson from 'superjson';
 import { trpc } from './client';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
@@ -36,6 +37,12 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
           transformer: superjson,
+          headers() {
+            // Send active workspace ID with every request so the server
+            // can scope all queries without requiring it as an input param.
+            const workspaceId = useWorkspaceStore.getState().workspaceId;
+            return workspaceId ? { 'x-workspace-id': workspaceId } : {};
+          },
         }),
       ],
     })

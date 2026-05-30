@@ -69,3 +69,43 @@ export async function sendLeaveApprovalEmail(
     console.error('Failed to send leave approval email:', error);
   }
 }
+
+export async function sendInvitationEmail(
+  email: string,
+  inviterName: string,
+  workspaceName: string,
+  inviteUrl: string
+) {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('Resend API key not configured — skipping invitation email');
+    return;
+  }
+  try {
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL ?? 'noreply@worknest.app',
+      to: email,
+      subject: `${inviterName} invited you to ${workspaceName} on WorkNest`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #0A1828; color: #fff; padding: 40px; border-radius: 12px;">
+          <h1 style="color: #178582; font-size: 24px; margin-bottom: 8px;">You're invited to WorkNest</h1>
+          <p style="color: #a1a1aa; font-size: 16px; margin-bottom: 24px;">Your team's daily command center.</p>
+          <p style="font-size: 16px;">Hi there,</p>
+          <p style="font-size: 16px; color: #d4d4d8;">
+            <strong>${inviterName}</strong> has invited you to join the
+            <strong style="color: #BFA181;">${workspaceName}</strong> workspace on WorkNest.
+          </p>
+          <p style="color: #a1a1aa; font-size: 14px;">This invitation expires in 7 days.</p>
+          <a href="${inviteUrl}" style="display: inline-block; background: #178582; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 24px; font-size: 16px;">
+            Accept Invitation →
+          </a>
+          <p style="color: #71717a; font-size: 12px; margin-top: 32px;">
+            If you didn't expect this invitation, you can safely ignore this email.
+          </p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error('Failed to send invitation email:', error);
+  }
+}

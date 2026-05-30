@@ -15,9 +15,7 @@ export async function proxy(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
-        );
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         supabaseResponse = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options)
@@ -33,8 +31,51 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Routes that require authentication
-  const isAppRoute =
+  // ── Route classification ──────────────────────────────────────────────────
+
+  // Workspace-scoped app routes: /w/[slug]/...
+  const isWorkspaceRoute = pathname.startsWith('/w/');
+
+  // Workspace management routes (picker, create)
+  const isWorkspaceManagementRoute =
+    pathname.startsWith('/workspaces') || pathname.startsWith('/notes');
+
+  // Legacy app routes (profile is workspace-agnostic)
+  const isProfileRoute = pathname.startsWith('/profile');
+
+  // Auth pages
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register');
+
+  // Public routes — always accessible
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/') ||
+    pathname.startsWith('/invite/');
+
+  // ── Guards ────────────────────────────────────────────────────────────────
+
+  if (isPublicRoute) return supabaseResponse;
+
+  // All protected routes require auth
+  if (
+    (isWorkspaceRoute || isWorkspaceManagementRoute || isProfileRoute) &&
+    !user
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect logged-in users away from auth pages
+  if (isAuthRoute && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/workspaces';
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect root dashboard/app paths to workspace picker
+  const isLegacyAppRoute =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/tasks') ||
     pathname.startsWith('/chat') ||
@@ -42,32 +83,11 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/documents') ||
     pathname.startsWith('/team') ||
     pathname.startsWith('/announcements') ||
-    pathname.startsWith('/analytics') ||
-    pathname.startsWith('/profile');
+    pathname.startsWith('/analytics');
 
-  // Auth pages — redirect to dashboard if already logged in
-  const isAuthRoute =
-    pathname.startsWith('/login') || pathname.startsWith('/register');
-
-  // Public routes — always accessible (landing page, auth callback, API)
-  const isPublicRoute =
-    pathname === '/' ||
-    pathname.startsWith('/auth/') ||
-    pathname.startsWith('/api/');
-
-  if (isPublicRoute) {
-    return supabaseResponse;
-  }
-
-  if (isAppRoute && !user) {
+  if (isLegacyAppRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  if (isAuthRoute && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
+    url.pathname = '/workspaces';
     return NextResponse.redirect(url);
   }
 

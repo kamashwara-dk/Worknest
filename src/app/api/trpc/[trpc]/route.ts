@@ -8,7 +8,8 @@ const handler = (req: NextRequest) =>
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    createContext: () => createContext(),
+    // Pass the raw request so context can read the x-workspace-id header
+    createContext: () => createContext(req),
     onError:
       process.env.NODE_ENV === 'development'
         ? ({ path, error }) => {

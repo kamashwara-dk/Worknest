@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure, managerProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
+import { createTRPCRouter, workspaceProcedure, workspaceManagerProcedure } from '../trpc';
 
 export const announcementsRouter = createTRPCRouter({
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         pinned: z.boolean().optional(),
@@ -12,22 +12,18 @@ export const announcementsRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const now = new Date();
-      const announcements = await ctx.prisma.announcement.findMany({
+      return ctx.prisma.announcement.findMany({
         where: {
+          workspaceId: ctx.workspaceId,
           ...(input?.pinned !== undefined && { pinned: input.pinned }),
-          OR: [
-            { expiresAt: null },
-            { expiresAt: { gt: now } },
-          ],
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },
         orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
         take: input?.limit ?? 20,
       });
-
-      return announcements;
     }),
 
-  create: managerProcedure
+  create: workspaceManagerProcedure
     .input(
       z.object({
         title: z.string().min(1).max(200),
@@ -39,32 +35,30 @@ export const announcementsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const announcement = await ctx.prisma.announcement.create({
-        data: {
-          ...input,
-          authorId: ctx.dbUser!.id,
-        },
+        data: { ...input, workspaceId: ctx.workspaceId, authorId: ctx.dbUser.id },
       });
 
-      // Notify all active users
-      const users = await ctx.prisma.user.findMany({
-        where: { isActive: true, id: { not: ctx.dbUser!.id } },
-        select: { id: true },
+      // Notify all workspace members except the author
+      const members = await ctx.prisma.membership.findMany({
+        where: { workspaceId: ctx.workspaceId, userId: { not: ctx.dbUser.id } },
+        select: { userId: true },
       });
 
       await ctx.prisma.notification.createMany({
-        data: users.map((u) => ({
-          userId: u.id,
+        data: members.map((m) => ({
+          workspaceId: ctx.workspaceId,
+          userId: m.userId,
           title: 'New announcement',
           body: input.title,
           type: 'ANNOUNCEMENT',
-          link: '/announcements',
+          link: `/w/${ctx.workspaceId}/announcements`,
         })),
       });
 
       return announcement;
     }),
 
-  update: managerProcedure
+  update: workspaceManagerProcedure
     .input(
       z.object({
         id: z.string(),
@@ -77,19 +71,20 @@ export const announcementsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return ctx.prisma.announcement.update({
-        where: { id },
-        data,
+      const existing = await ctx.prisma.announcement.findFirst({
+        where: { id, workspaceId: ctx.workspaceId },
       });
+      if (!existing) throw new TRPCError({ code: 'NOT_FOUND' });
+      return ctx.prisma.announcement.update({ where: { id }, data });
     }),
 
-  delete: managerProcedure
+  delete: workspaceManagerProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.prisma.announcement.findUnique({ where: { id: input.id } });
-      if (!existing) {
-        throw new TRPCError({ code: 'NOT_FOUND' });
-      }
+      const existing = await ctx.prisma.announcement.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
+      });
+      if (!existing) throw new TRPCError({ code: 'NOT_FOUND' });
       await ctx.prisma.announcement.delete({ where: { id: input.id } });
       return { success: true };
     }),

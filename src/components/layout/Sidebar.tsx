@@ -2,42 +2,48 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CheckSquare, MessageSquare, Calendar,
   FileText, Users, Megaphone, BarChart3, User, ChevronLeft,
-  ChevronRight, X
+  ChevronRight, X, StickyNote, Building2, ChevronDown,
 } from 'lucide-react';
 import { useUIStore } from '@/store/useUIStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { cn } from '@/lib/utils';
 import { drawerVariants, sidebarVariants } from '@/lib/animations';
 import { trpc } from '@/lib/trpc/client';
 
-const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { label: 'Chat', href: '/chat', icon: MessageSquare },
-  { label: 'Leaves', href: '/leaves', icon: Calendar },
-  { label: 'Documents', href: '/documents', icon: FileText },
-  { label: 'Team', href: '/team', icon: Users },
-  { label: 'Announcements', href: '/announcements', icon: Megaphone },
-  { label: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { label: 'Profile', href: '/profile', icon: User },
-];
+function useNavItems(slug: string) {
+  const base = `/w/${slug}`;
+  return [
+    { label: 'Dashboard',     href: `${base}/dashboard`,     icon: LayoutDashboard },
+    { label: 'Tasks',         href: `${base}/tasks`,         icon: CheckSquare },
+    { label: 'Chat',          href: `${base}/chat`,          icon: MessageSquare },
+    { label: 'Leaves',        href: `${base}/leaves`,        icon: Calendar },
+    { label: 'Documents',     href: `${base}/documents`,     icon: FileText },
+    { label: 'Team',          href: `${base}/team`,          icon: Users },
+    { label: 'Announcements', href: `${base}/announcements`, icon: Megaphone },
+    { label: 'Analytics',     href: `${base}/analytics`,     icon: BarChart3 },
+  ];
+}
 
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { unreadCounts } = useChatStore();
   const { unreadCount: notifCount } = useNotificationStore();
+  const { workspaceSlug, workspaceName } = useWorkspaceStore();
   const { data: meData } = trpc.users.me.useQuery();
 
+  const navItems = useNavItems(workspaceSlug ?? '');
   const totalUnreadChat = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="flex flex-col h-full">
-      {/* Logo */}
+      {/* Logo + workspace name */}
       <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-border', collapsed && 'justify-center px-2')}>
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center flex-shrink-0 shadow-glow-primary">
           <span className="font-display font-bold text-white text-sm">W</span>
@@ -56,12 +62,25 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         </AnimatePresence>
       </div>
 
+      {/* Workspace switcher */}
+      {!collapsed && workspaceName && (
+        <button
+          onClick={() => router.push('/workspaces')}
+          className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#112540] border border-[#1E3A5F] hover:border-[#178582] transition-colors text-left"
+        >
+          <Building2 size={14} className="text-[#178582] shrink-0" />
+          <span className="text-xs text-[#E8F0F8] font-medium truncate flex-1">{workspaceName}</span>
+          <ChevronDown size={12} className="text-[#7A9BBF] shrink-0" />
+        </button>
+      )}
+
       {/* Nav items */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto no-scrollbar">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-          const badge = item.href === '/chat' ? totalUnreadChat :
-                        item.href === '/announcements' ? notifCount : 0;
+          const badge =
+            item.href.endsWith('/chat') ? totalUnreadChat :
+            item.href.endsWith('/announcements') ? notifCount : 0;
 
           return (
             <Link
@@ -100,6 +119,63 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
             </Link>
           );
         })}
+
+        {/* Divider */}
+        <div className="my-2 border-t border-[#1E3A5F]" />
+
+        {/* Private Notes — workspace-agnostic */}
+        <Link
+          href="/notes"
+          title={collapsed ? 'My Notes' : undefined}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative',
+            pathname === '/notes'
+              ? 'bg-primary/10 text-primary border-l-2 border-primary'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5',
+            collapsed && 'justify-center px-2'
+          )}
+        >
+          <StickyNote size={18} className="flex-shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="text-sm font-medium overflow-hidden whitespace-nowrap flex-1"
+              >
+                My Notes
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </Link>
+
+        {/* Profile */}
+        <Link
+          href="/profile"
+          title={collapsed ? 'Profile' : undefined}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative',
+            pathname === '/profile'
+              ? 'bg-primary/10 text-primary border-l-2 border-primary'
+              : 'text-zinc-400 hover:text-white hover:bg-white/5',
+            collapsed && 'justify-center px-2'
+          )}
+        >
+          <User size={18} className="flex-shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="text-sm font-medium overflow-hidden whitespace-nowrap flex-1"
+              >
+                Profile
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </Link>
       </nav>
 
       {/* User info at bottom */}
@@ -123,7 +199,9 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                   className="overflow-hidden"
                 >
                   <p className="text-sm font-medium text-white truncate max-w-[140px]">{meData.name}</p>
-                  <p className="text-xs text-zinc-500 truncate max-w-[140px]">{meData.role}</p>
+                  <p className="text-xs text-zinc-500 truncate max-w-[140px] capitalize">
+                    {useWorkspaceStore.getState().workspaceRole?.toLowerCase() ?? meData.role.toLowerCase()}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -147,7 +225,6 @@ export function Sidebar() {
       >
         <SidebarContent collapsed={sidebarCollapsed} />
 
-        {/* Collapse toggle */}
         <button
           onClick={toggleSidebar}
           className="absolute top-1/2 -right-3 w-6 h-6 rounded-full bg-surface border border-border flex items-center justify-center text-zinc-400 hover:text-white hover:bg-[#112540] transition-colors z-50"

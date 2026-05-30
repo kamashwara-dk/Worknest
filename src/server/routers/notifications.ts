@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { createTRPCRouter, protectedProcedure, workspaceProcedure } from '../trpc';
 
 export const notificationsRouter = createTRPCRouter({
-  list: protectedProcedure
+  // Returns notifications for the active workspace (requires workspace header)
+  list: workspaceProcedure
     .input(
       z.object({
         limit: z.number().default(20),
@@ -12,7 +13,8 @@ export const notificationsRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const notifications = await ctx.prisma.notification.findMany({
         where: {
-          userId: ctx.dbUser!.id,
+          userId: ctx.dbUser.id,
+          workspaceId: ctx.workspaceId,
           ...(input?.unreadOnly && { read: false }),
         },
         orderBy: [{ read: 'asc' }, { createdAt: 'desc' }],
@@ -20,7 +22,7 @@ export const notificationsRouter = createTRPCRouter({
       });
 
       const unreadCount = await ctx.prisma.notification.count({
-        where: { userId: ctx.dbUser!.id, read: false },
+        where: { userId: ctx.dbUser.id, workspaceId: ctx.workspaceId, read: false },
       });
 
       return { notifications, unreadCount };
@@ -35,17 +37,17 @@ export const notificationsRouter = createTRPCRouter({
       });
     }),
 
-  markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+  markAllRead: workspaceProcedure.mutation(async ({ ctx }) => {
     await ctx.prisma.notification.updateMany({
-      where: { userId: ctx.dbUser!.id, read: false },
+      where: { userId: ctx.dbUser.id, workspaceId: ctx.workspaceId, read: false },
       data: { read: true },
     });
     return { success: true };
   }),
 
-  clear: protectedProcedure.mutation(async ({ ctx }) => {
+  clear: workspaceProcedure.mutation(async ({ ctx }) => {
     await ctx.prisma.notification.deleteMany({
-      where: { userId: ctx.dbUser!.id, read: true },
+      where: { userId: ctx.dbUser.id, workspaceId: ctx.workspaceId, read: true },
     });
     return { success: true };
   }),

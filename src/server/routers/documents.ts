@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { TRPCError } from '@trpc/server';
+import { createTRPCRouter, workspaceProcedure } from '../trpc';
 
 export const documentsRouter = createTRPCRouter({
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         search: z.string().optional(),
@@ -13,16 +13,12 @@ export const documentsRouter = createTRPCRouter({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const documents = await ctx.prisma.document.findMany({
+      return ctx.prisma.document.findMany({
         where: {
-          OR: [
-            { authorId: ctx.dbUser!.id },
-            { isPublic: true },
-          ],
+          workspaceId: ctx.workspaceId,
+          OR: [{ authorId: ctx.dbUser.id }, { isPublic: true }],
           ...(input?.search && {
-            OR: [
-              { title: { contains: input.search, mode: 'insensitive' } },
-            ],
+            title: { contains: input.search, mode: 'insensitive' },
           }),
           ...(input?.authorId && { authorId: input.authorId }),
           ...(input?.isPublic !== undefined && { isPublic: input.isPublic }),
@@ -30,30 +26,23 @@ export const documentsRouter = createTRPCRouter({
         include: { author: true },
         orderBy: { updatedAt: 'desc' },
       });
-
-      return documents;
     }),
 
-  byId: protectedProcedure
+  byId: workspaceProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const doc = await ctx.prisma.document.findUnique({
-        where: { id: input.id },
+      const doc = await ctx.prisma.document.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
         include: { author: true },
       });
-
-      if (!doc) {
-        throw new TRPCError({ code: 'NOT_FOUND' });
-      }
-
-      if (!doc.isPublic && doc.authorId !== ctx.dbUser!.id) {
+      if (!doc) throw new TRPCError({ code: 'NOT_FOUND' });
+      if (!doc.isPublic && doc.authorId !== ctx.dbUser.id) {
         throw new TRPCError({ code: 'FORBIDDEN' });
       }
-
       return doc;
     }),
 
-  create: protectedProcedure
+  create: workspaceProcedure
     .input(
       z.object({
         title: z.string().min(1).max(200),
@@ -63,17 +52,13 @@ export const documentsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const doc = await ctx.prisma.document.create({
-        data: {
-          ...input,
-          authorId: ctx.dbUser!.id,
-        },
+      return ctx.prisma.document.create({
+        data: { ...input, workspaceId: ctx.workspaceId, authorId: ctx.dbUser.id },
         include: { author: true },
       });
-      return doc;
     }),
 
-  update: protectedProcedure
+  update: workspaceProcedure
     .input(
       z.object({
         id: z.string(),
@@ -85,44 +70,41 @@ export const documentsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-
-      const existing = await ctx.prisma.document.findUnique({ where: { id } });
-      if (!existing || existing.authorId !== ctx.dbUser!.id) {
+      const existing = await ctx.prisma.document.findFirst({
+        where: { id, workspaceId: ctx.workspaceId },
+      });
+      if (!existing || existing.authorId !== ctx.dbUser.id) {
         throw new TRPCError({ code: 'FORBIDDEN' });
       }
-
-      const doc = await ctx.prisma.document.update({
+      return ctx.prisma.document.update({
         where: { id },
-        data: {
-          ...data,
-          version: { increment: 1 },
-        },
+        data: { ...data, version: { increment: 1 } },
         include: { author: true },
       });
-
-      return doc;
     }),
 
-  delete: protectedProcedure
+  delete: workspaceProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.prisma.document.findUnique({ where: { id: input.id } });
-      if (!existing || existing.authorId !== ctx.dbUser!.id) {
+      const existing = await ctx.prisma.document.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
+      });
+      if (!existing || existing.authorId !== ctx.dbUser.id) {
         throw new TRPCError({ code: 'FORBIDDEN' });
       }
-
       await ctx.prisma.document.delete({ where: { id: input.id } });
       return { success: true };
     }),
 
-  togglePublic: protectedProcedure
+  togglePublic: workspaceProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.prisma.document.findUnique({ where: { id: input.id } });
-      if (!existing || existing.authorId !== ctx.dbUser!.id) {
+      const existing = await ctx.prisma.document.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
+      });
+      if (!existing || existing.authorId !== ctx.dbUser.id) {
         throw new TRPCError({ code: 'FORBIDDEN' });
       }
-
       return ctx.prisma.document.update({
         where: { id: input.id },
         data: { isPublic: !existing.isPublic },

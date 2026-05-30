@@ -1,39 +1,48 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id           String   @id @default(cuid())
-  supabaseId   String   @unique
-  email        String   @unique
-  name         String
-  avatar       String?
-  role         Role     @default(EMPLOYEE)
-  department   String?
-  designation  String?
-  phone        String?
-  bio          String?
-  linkedinUrl  String?
-  twitterUrl   String?
-  githubUrl    String?
-  websiteUrl   String?
-  joinedAt     DateTime @default(now())
-  isActive     Boolean  @default(true)
+// ─── User ────────────────────────────────────────────────────────────────────
 
-  tasks        Task[]         @relation("assignedTo")
-  createdTasks Task[]         @relation("createdBy")
+model User {
+  id          String  @id @default(cuid())
+  supabaseId  String  @unique
+  email       String  @unique
+  name        String
+  avatar      String?
+  role        Role    @default(EMPLOYEE)
+  department  String?
+  designation String?
+  phone       String?
+  bio         String?
+  linkedinUrl String?
+  twitterUrl  String?
+  githubUrl   String?
+  websiteUrl  String?
+  joinedAt    DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  // Workspace relations
+  ownedWorkspaces Workspace[]  @relation("workspaceOwner")
+  memberships     Membership[]
+  sentInvitations Invitation[] @relation("invitedBy")
+
+  // Feature relations (now workspace-scoped via their own workspaceId)
+  tasks         Task[]         @relation("assignedTo")
+  createdTasks  Task[]         @relation("createdBy")
   leaveRequests LeaveRequest[]
-  messages     Message[]
-  documents    Document[]
+  messages      Message[]
+  documents     Document[]
   notifications Notification[]
+
+  // Private notes — never workspace-scoped
+  notes Note[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -45,8 +54,99 @@ enum Role {
   EMPLOYEE
 }
 
+// ─── Workspace ───────────────────────────────────────────────────────────────
+
+model Workspace {
+  id      String  @id @default(cuid())
+  name    String
+  slug    String  @unique
+  logoUrl String?
+  ownerId String
+  owner   User    @relation("workspaceOwner", fields: [ownerId], references: [id])
+
+  memberships   Membership[]
+  invitations   Invitation[]
+
+  // Workspace-scoped data
+  tasks         Task[]
+  channels      Channel[]
+  leaveRequests LeaveRequest[]
+  documents     Document[]
+  announcements Announcement[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Membership ──────────────────────────────────────────────────────────────
+
+model Membership {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  @@unique([userId, workspaceId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+// ─── Invitation ──────────────────────────────────────────────────────────────
+
+model Invitation {
+  id          String           @id @default(cuid())
+  email       String
+  workspaceId String
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedById String
+  invitedBy   User             @relation("invitedBy", fields: [invitedById], references: [id])
+  token       String           @unique @default(cuid())
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+
+  createdAt DateTime @default(now())
+
+  @@unique([email, workspaceId])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// ─── Note (private per-user) ─────────────────────────────────────────────────
+
+model Note {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title   String
+  content String   @db.Text
+  color   String?
+  pinned  Boolean  @default(false)
+  tags    String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Task ────────────────────────────────────────────────────────────────────
+
 model Task {
   id          String     @id @default(cuid())
+  workspaceId String
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   title       String
   description String?
   status      TaskStatus @default(TODO)
@@ -78,17 +178,21 @@ enum Priority {
   URGENT
 }
 
+// ─── Leave ───────────────────────────────────────────────────────────────────
+
 model LeaveRequest {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id])
-  type       LeaveType
-  startDate  DateTime
-  endDate    DateTime
-  reason     String
-  status     LeaveStatus @default(PENDING)
-  approvedBy String?
-  comments   String?
+  id          String      @id @default(cuid())
+  workspaceId String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  type        LeaveType
+  startDate   DateTime
+  endDate     DateTime
+  reason      String
+  status      LeaveStatus @default(PENDING)
+  approvedBy  String?
+  comments    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -110,10 +214,12 @@ enum LeaveStatus {
   CANCELLED
 }
 
+// ─── Chat ────────────────────────────────────────────────────────────────────
+
 model Message {
   id        String      @id @default(cuid())
   channelId String
-  channel   Channel     @relation(fields: [channelId], references: [id])
+  channel   Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
   senderId  String
   sender    User        @relation(fields: [senderId], references: [id])
   content   String
@@ -132,50 +238,66 @@ enum MessageType {
 
 model Channel {
   id          String    @id @default(cuid())
-  name        String    @unique
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
   description String?
   isPrivate   Boolean   @default(false)
   messages    Message[]
 
   createdAt DateTime @default(now())
+
+  @@unique([workspaceId, name])
 }
 
+// ─── Document ────────────────────────────────────────────────────────────────
+
 model Document {
-  id       String  @id @default(cuid())
-  title    String
-  content  String  @db.Text
-  authorId String
-  author   User    @relation(fields: [authorId], references: [id])
-  isPublic Boolean @default(false)
-  tags     String[]
-  fileUrl  String?
-  version  Int     @default(1)
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title       String
+  content     String    @db.Text
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  isPublic    Boolean   @default(false)
+  tags        String[]
+  fileUrl     String?
+  version     Int       @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+// ─── Announcement ────────────────────────────────────────────────────────────
+
 model Announcement {
-  id        String    @id @default(cuid())
-  title     String
-  body      String    @db.Text
-  authorId  String
-  priority  Priority  @default(MEDIUM)
-  pinned    Boolean   @default(false)
-  expiresAt DateTime?
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  title       String
+  body        String    @db.Text
+  authorId    String
+  priority    Priority  @default(MEDIUM)
+  pinned      Boolean   @default(false)
+  expiresAt   DateTime?
 
   createdAt DateTime @default(now())
 }
 
+// ─── Notification ────────────────────────────────────────────────────────────
+
 model Notification {
-  id     String  @id @default(cuid())
-  userId String
-  user   User    @relation(fields: [userId], references: [id])
-  title  String
-  body   String
-  type   String
-  read   Boolean @default(false)
-  link   String?
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  title       String
+  body        String
+  type        String
+  read        Boolean   @default(false)
+  link        String?
 
   createdAt DateTime @default(now())
 }

@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure, managerProcedure } from '../trpc';
-import { sendLeaveApprovalEmail } from '@/lib/resend';
 import { TRPCError } from '@trpc/server';
+import { createTRPCRouter, workspaceProcedure, workspaceManagerProcedure } from '../trpc';
+import { sendLeaveApprovalEmail } from '@/lib/resend';
 
 export const leavesRouter = createTRPCRouter({
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         userId: z.string().optional(),
@@ -13,26 +13,25 @@ export const leavesRouter = createTRPCRouter({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const isManagerOrAdmin =
-        ctx.dbUser?.role === 'MANAGER' || ctx.dbUser?.role === 'ADMIN';
+      const isManagerOrAbove =
+        ctx.dbMembership.role === 'MANAGER' ||
+        ctx.dbMembership.role === 'ADMIN' ||
+        ctx.dbMembership.role === 'OWNER';
 
-      const where = {
-        ...(input?.status && { status: input.status }),
-        ...(!input?.all || !isManagerOrAdmin
-          ? { userId: input?.userId ?? ctx.dbUser!.id }
-          : {}),
-      };
-
-      const leaves = await ctx.prisma.leaveRequest.findMany({
-        where,
+      return ctx.prisma.leaveRequest.findMany({
+        where: {
+          workspaceId: ctx.workspaceId,
+          ...(input?.status && { status: input.status }),
+          ...(!input?.all || !isManagerOrAbove
+            ? { userId: input?.userId ?? ctx.dbUser.id }
+            : {}),
+        },
         include: { user: true },
         orderBy: { createdAt: 'desc' },
       });
-
-      return leaves;
     }),
 
-  request: protectedProcedure
+  request: workspaceProcedure
     .input(
       z.object({
         type: z.enum(['SICK', 'CASUAL', 'EARNED', 'MATERNITY', 'PATERNITY', 'UNPAID']),
@@ -43,74 +42,60 @@ export const leavesRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const leave = await ctx.prisma.leaveRequest.create({
-        data: {
-          ...input,
-          userId: ctx.dbUser!.id,
-        },
+        data: { ...input, workspaceId: ctx.workspaceId, userId: ctx.dbUser.id },
         include: { user: true },
       });
 
-      // Notify managers
-      const managers = await ctx.prisma.user.findMany({
-        where: { role: { in: ['MANAGER', 'ADMIN'] }, isActive: true },
+      // Notify workspace managers/admins/owner
+      const managers = await ctx.prisma.membership.findMany({
+        where: {
+          workspaceId: ctx.workspaceId,
+          role: { in: ['MANAGER', 'ADMIN', 'OWNER'] },
+          userId: { not: ctx.dbUser.id },
+        },
+        select: { userId: true },
       });
 
-      await Promise.all(
-        managers.map((manager) =>
-          ctx.prisma.notification.create({
-            data: {
-              userId: manager.id,
-              title: 'New leave request',
-              body: `${ctx.dbUser!.name} has requested ${input.type.toLowerCase()} leave`,
-              type: 'LEAVE_REQUEST',
-              link: '/leaves',
-            },
-          })
-        )
-      );
+      await ctx.prisma.notification.createMany({
+        data: managers.map((m) => ({
+          workspaceId: ctx.workspaceId,
+          userId: m.userId,
+          title: 'New leave request',
+          body: `${ctx.dbUser.name} has requested ${input.type.toLowerCase()} leave`,
+          type: 'LEAVE_REQUEST',
+          link: `/w/${ctx.workspaceId}/leaves`,
+        })),
+      });
 
       return leave;
     }),
 
-  approve: managerProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        comments: z.string().optional(),
-      })
-    )
+  approve: workspaceManagerProcedure
+    .input(z.object({ id: z.string(), comments: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const leave = await ctx.prisma.leaveRequest.findUnique({
-        where: { id: input.id },
+      const leave = await ctx.prisma.leaveRequest.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
         include: { user: true },
       });
-
-      if (!leave) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Leave request not found' });
-      }
+      if (!leave) throw new TRPCError({ code: 'NOT_FOUND' });
 
       const updated = await ctx.prisma.leaveRequest.update({
         where: { id: input.id },
-        data: {
-          status: 'APPROVED',
-          approvedBy: ctx.dbUser!.id,
-          comments: input.comments,
-        },
+        data: { status: 'APPROVED', approvedBy: ctx.dbUser.id, comments: input.comments },
         include: { user: true },
       });
 
-      // Notify employee
       await ctx.prisma.notification.create({
         data: {
+          workspaceId: ctx.workspaceId,
           userId: leave.userId,
           title: 'Leave request approved',
           body: `Your ${leave.type.toLowerCase()} leave has been approved`,
           type: 'LEAVE_APPROVED',
-          link: '/leaves',
+          link: `/w/${ctx.workspaceId}/leaves`,
         },
       });
 
-      // Send email
       await sendLeaveApprovalEmail(
         leave.user.email,
         leave.user.name,
@@ -124,7 +109,7 @@ export const leavesRouter = createTRPCRouter({
       return updated;
     }),
 
-  reject: managerProcedure
+  reject: workspaceManagerProcedure
     .input(
       z.object({
         id: z.string(),
@@ -132,32 +117,26 @@ export const leavesRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const leave = await ctx.prisma.leaveRequest.findUnique({
-        where: { id: input.id },
+      const leave = await ctx.prisma.leaveRequest.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId },
         include: { user: true },
       });
-
-      if (!leave) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Leave request not found' });
-      }
+      if (!leave) throw new TRPCError({ code: 'NOT_FOUND' });
 
       const updated = await ctx.prisma.leaveRequest.update({
         where: { id: input.id },
-        data: {
-          status: 'REJECTED',
-          approvedBy: ctx.dbUser!.id,
-          comments: input.comments,
-        },
+        data: { status: 'REJECTED', approvedBy: ctx.dbUser.id, comments: input.comments },
         include: { user: true },
       });
 
       await ctx.prisma.notification.create({
         data: {
+          workspaceId: ctx.workspaceId,
           userId: leave.userId,
           title: 'Leave request rejected',
           body: `Your ${leave.type.toLowerCase()} leave has been rejected`,
           type: 'LEAVE_REJECTED',
-          link: '/leaves',
+          link: `/w/${ctx.workspaceId}/leaves`,
         },
       });
 
@@ -174,17 +153,13 @@ export const leavesRouter = createTRPCRouter({
       return updated;
     }),
 
-  cancel: protectedProcedure
+  cancel: workspaceProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const leave = await ctx.prisma.leaveRequest.findUnique({
-        where: { id: input.id },
+      const leave = await ctx.prisma.leaveRequest.findFirst({
+        where: { id: input.id, workspaceId: ctx.workspaceId, userId: ctx.dbUser.id },
       });
-
-      if (!leave || leave.userId !== ctx.dbUser!.id) {
-        throw new TRPCError({ code: 'FORBIDDEN' });
-      }
-
+      if (!leave) throw new TRPCError({ code: 'FORBIDDEN' });
       return ctx.prisma.leaveRequest.update({
         where: { id: input.id },
         data: { status: 'CANCELLED' },

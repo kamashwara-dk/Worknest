@@ -7,6 +7,9 @@ import { usersRouter } from './users';
 import { announcementsRouter } from './announcements';
 import { notificationsRouter } from './notifications';
 import { analyticsRouter } from './analytics';
+import { workspacesRouter } from './workspaces';
+import { invitationsRouter } from './invitations';
+import { notesRouter } from './notes';
 
 export const appRouter = createTRPCRouter({
   tasks: tasksRouter,
@@ -17,6 +20,9 @@ export const appRouter = createTRPCRouter({
   announcements: announcementsRouter,
   notifications: notificationsRouter,
   analytics: analyticsRouter,
+  workspaces: workspacesRouter,
+  invitations: invitationsRouter,
+  notes: notesRouter,
 });
 
 export type AppRouter = typeof appRouter;

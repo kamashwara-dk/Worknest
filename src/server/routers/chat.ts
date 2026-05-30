@@ -1,21 +1,17 @@
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { createTRPCRouter, workspaceProcedure, workspaceManagerProcedure } from '../trpc';
 
 export const chatRouter = createTRPCRouter({
   channels: createTRPCRouter({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      const channels = await ctx.prisma.channel.findMany({
+    list: workspaceProcedure.query(async ({ ctx }) => {
+      return ctx.prisma.channel.findMany({
+        where: { workspaceId: ctx.workspaceId },
         orderBy: { createdAt: 'asc' },
-        include: {
-          _count: {
-            select: { messages: true },
-          },
-        },
+        include: { _count: { select: { messages: true } } },
       });
-      return channels;
     }),
 
-    create: protectedProcedure
+    create: workspaceManagerProcedure
       .input(
         z.object({
           name: z.string().min(1).max(50),
@@ -24,15 +20,14 @@ export const chatRouter = createTRPCRouter({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const channel = await ctx.prisma.channel.create({
-          data: input,
+        return ctx.prisma.channel.create({
+          data: { ...input, workspaceId: ctx.workspaceId },
         });
-        return channel;
       }),
   }),
 
   messages: createTRPCRouter({
-    list: protectedProcedure
+    list: workspaceProcedure
       .input(
         z.object({
           channelId: z.string(),
@@ -42,31 +37,22 @@ export const chatRouter = createTRPCRouter({
       )
       .query(async ({ ctx, input }) => {
         const messages = await ctx.prisma.message.findMany({
-          where: { channelId: input.channelId },
-          include: {
-            sender: true,
-          },
+          where: { channelId: input.channelId, channel: { workspaceId: ctx.workspaceId } },
+          include: { sender: true },
           orderBy: { createdAt: 'desc' },
           take: input.limit + 1,
-          ...(input.cursor && {
-            cursor: { id: input.cursor },
-            skip: 1,
-          }),
+          ...(input.cursor && { cursor: { id: input.cursor }, skip: 1 }),
         });
 
         let nextCursor: string | undefined;
         if (messages.length > input.limit) {
-          const nextItem = messages.pop();
-          nextCursor = nextItem?.id;
+          nextCursor = messages.pop()?.id;
         }
 
-        return {
-          messages: messages.reverse(),
-          nextCursor,
-        };
+        return { messages: messages.reverse(), nextCursor };
       }),
 
-    send: protectedProcedure
+    send: workspaceProcedure
       .input(
         z.object({
           channelId: z.string(),
@@ -76,36 +62,20 @@ export const chatRouter = createTRPCRouter({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const message = await ctx.prisma.message.create({
-          data: {
-            ...input,
-            senderId: ctx.dbUser!.id,
-          },
-          include: {
-            sender: true,
-          },
-        });
-
-        return message;
-      }),
-
-    edit: protectedProcedure
-      .input(
-        z.object({
-          id: z.string(),
-          content: z.string().min(1).max(4000),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const message = await ctx.prisma.message.update({
-          where: { id: input.id, senderId: ctx.dbUser!.id },
-          data: {
-            content: input.content,
-            editedAt: new Date(),
-          },
+        return ctx.prisma.message.create({
+          data: { ...input, senderId: ctx.dbUser.id },
           include: { sender: true },
         });
-        return message;
+      }),
+
+    edit: workspaceProcedure
+      .input(z.object({ id: z.string(), content: z.string().min(1).max(4000) }))
+      .mutation(async ({ ctx, input }) => {
+        return ctx.prisma.message.update({
+          where: { id: input.id, senderId: ctx.dbUser.id },
+          data: { content: input.content, editedAt: new Date() },
+          include: { sender: true },
+        });
       }),
   }),
 });
