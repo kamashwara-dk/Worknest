@@ -20,14 +20,30 @@ const t = initTRPC.context<Context>().create({
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 
-const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
+const enforceUserIsAuthed = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) {
     throw new TRPCError({ code: 'UNAUTHORIZED' });
   }
+
+  // Auto-create DB user if Supabase auth user exists but no DB record yet
+  let dbUser = ctx.dbUser;
+  if (!dbUser) {
+    const name = ctx.user.user_metadata?.full_name ?? ctx.user.email?.split('@')[0] ?? 'User';
+    dbUser = await ctx.prisma.user.create({
+      data: {
+        supabaseId: ctx.user.id,
+        email: ctx.user.email!,
+        name,
+        avatar: ctx.user.user_metadata?.avatar_url ??
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=178582&color=fff&size=128`,
+      },
+    });
+  }
+
   return next({
     ctx: {
       user: ctx.user,
-      dbUser: ctx.dbUser,
+      dbUser,
     },
   });
 });
