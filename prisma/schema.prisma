@@ -42,6 +42,8 @@ model User {
   messages      Message[]
   documents     Document[]
   notifications Notification[]
+  conversationsAsOne Conversation[] @relation("conversationMemberOne")
+  conversationsAsTwo Conversation[] @relation("conversationMemberTwo")
 
   // Private notes — never workspace-scoped
   notes Note[]
@@ -84,6 +86,7 @@ model Workspace {
   documents     Document[]
   announcements Announcement[]
   notifications Notification[]
+  conversations Conversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -262,14 +265,17 @@ enum LeaveStatus {
 // ─── Chat ────────────────────────────────────────────────────────────────────
 
 model Message {
-  id        String      @id @default(cuid())
-  channelId String
-  channel   Channel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  senderId  String
-  sender    User        @relation(fields: [senderId], references: [id])
-  content   String
-  type      MessageType @default(TEXT)
-  fileUrl   String?
+  id             String       @id @default(cuid())
+  // Either channelId OR conversationId must be set (not both)
+  channelId      String?
+  channel        Channel?     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  content        String
+  type           MessageType  @default(TEXT)
+  fileUrl        String?
 
   createdAt DateTime  @default(now())
   editedAt  DateTime?
@@ -293,6 +299,24 @@ model Channel {
   createdAt DateTime @default(now())
 
   @@unique([workspaceId, name])
+}
+
+// ─── Conversation (1-on-1 DMs) ───────────────────────────────────────────────
+
+model Conversation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberOneId String
+  memberOne   User      @relation("conversationMemberOne", fields: [memberOneId], references: [id])
+  memberTwoId String
+  memberTwo   User      @relation("conversationMemberTwo", fields: [memberTwoId], references: [id])
+  messages    Message[]
+
+  createdAt DateTime @default(now())
+
+  // Prevent duplicate conversations for the same pair in the same workspace
+  @@unique([workspaceId, memberOneId, memberTwoId])
 }
 
 // ─── Document ────────────────────────────────────────────────────────────────

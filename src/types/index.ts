@@ -56,7 +56,8 @@ export interface LeaveRequest {
 
 export interface Message {
   id: string;
-  channelId: string;
+  channelId?: string | null;
+  conversationId?: string | null;
   senderId: string;
   sender?: User;
   content: string;
@@ -64,6 +65,16 @@ export interface Message {
   fileUrl?: string | null;
   createdAt: Date;
   editedAt?: Date | null;
+}
+
+export interface Conversation {
+  id: string;
+  workspaceId: string;
+  memberOneId: string;
+  memberTwoId: string;
+  other: Pick<User, 'id' | 'name' | 'avatar' | 'email'>;
+  lastMessage?: Message | null;
+  createdAt: Date;
 }
 
 export interface Channel {
