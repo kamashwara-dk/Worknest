@@ -199,8 +199,8 @@ export const workspacesRouter = createTRPCRouter({
 
   // ── Join code management ─────────────────────────────────────────────────
 
-  // Get the current workspace's join code (managers+)
-  getJoinCode: workspaceManagerProcedure.query(async ({ ctx }) => {
+  // Get the current workspace's join code (all members can see it to share)
+  getJoinCode: workspaceProcedure.query(async ({ ctx }) => {
     const ws = await ctx.prisma.workspace.findUnique({
       where: { id: ctx.workspaceId },
       select: { joinCode: true, joinCodeEnabled: true },

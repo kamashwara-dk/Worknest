@@ -12,7 +12,14 @@ export function generateJoinCode(): string {
   return `${pick()}${pick()}${pick()}-${pick()}${pick()}${pick()}`;
 }
 
-/** Normalise user input — strip dashes, uppercase */
+/** Normalise user input — strip spaces, uppercase, re-insert dash if missing */
 export function normaliseJoinCode(raw: string): string {
-  return raw.replace(/[-\s]/g, '').toUpperCase();
+  // Strip all spaces and dashes, uppercase
+  const clean = raw.replace(/[-\s]/g, '').toUpperCase();
+  // Re-insert the dash after position 3 to match stored format XXX-XXX
+  if (clean.length === 6) {
+    return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  }
+  // Already has dash or unexpected length — return as-is uppercased
+  return raw.trim().toUpperCase();
 }

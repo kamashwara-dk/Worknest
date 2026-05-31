@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc/client';
 import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { motion } from 'framer-motion';
 import {
   Hash, Link2, Copy, RefreshCw, Plus, Trash2, ToggleLeft,
   ToggleRight, Check, ExternalLink, Shield, Clock, Users,
-  ChevronDown, ChevronUp, Loader2,
+  ChevronDown, ChevronUp, Loader2, LogOut, AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -26,9 +27,10 @@ const APP_URL =
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { workspaceRole } = useWorkspaceStore();
+  const { workspaceRole, workspaceName, clearWorkspace } = useWorkspaceStore();
   const isManager = workspaceRole === 'MANAGER' || workspaceRole === 'ADMIN' || workspaceRole === 'OWNER';
   const isAdmin   = workspaceRole === 'ADMIN'   || workspaceRole === 'OWNER';
+  const isOwner   = workspaceRole === 'OWNER';
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-8">
@@ -37,27 +39,21 @@ export default function SettingsPage() {
         <p className="text-[#7A9BBF] text-sm mt-1">Manage how people join your workspace</p>
       </div>
 
-      {isManager ? (
-        <>
-          <JoinCodeSection isAdmin={isAdmin} />
-          <InviteLinksSection isAdmin={isAdmin} />
-        </>
-      ) : (
-        <div className="bg-[#0D1F35] border border-[#1E3A5F] rounded-xl p-8 text-center">
-          <Shield className="w-10 h-10 text-[#7A9BBF] mx-auto mb-3 opacity-50" />
-          <p className="text-[#E8F0F8] font-medium">Manager access required</p>
-          <p className="text-[#7A9BBF] text-sm mt-1">
-            Only managers, admins, and owners can manage workspace settings.
-          </p>
-        </div>
-      )}
+      {/* Join code — visible to all members so they can share it */}
+      <JoinCodeSection isAdmin={isAdmin} isManager={isManager} />
+
+      {/* Invite links — managers+ only */}
+      {isManager && <InviteLinksSection isAdmin={isAdmin} />}
+
+      {/* Leave workspace — all non-owners */}
+      {!isOwner && <LeaveWorkspaceSection workspaceName={workspaceName ?? 'this workspace'} onLeft={clearWorkspace} />}
     </div>
   );
 }
 
 // ─── Join Code section ────────────────────────────────────────────────────────
 
-function JoinCodeSection({ isAdmin }: { isAdmin: boolean }) {
+function JoinCodeSection({ isAdmin, isManager }: { isAdmin: boolean; isManager: boolean }) {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.workspaces.getJoinCode.useQuery();
 
@@ -501,5 +497,93 @@ function InactiveLinksAccordion({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Leave Workspace section ──────────────────────────────────────────────────
+
+function LeaveWorkspaceSection({
+  workspaceName,
+  onLeft,
+}: {
+  workspaceName: string;
+  onLeft: () => void;
+}) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+
+  const leaveMutation = trpc.workspaces.members.leave.useMutation({
+    onSuccess: () => {
+      toast.success(`You have left "${workspaceName}"`);
+      onLeft();
+      router.push('/workspaces');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <section className="bg-[#0D1F35] border border-red-500/20 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-red-500/10">
+        <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+          <LogOut className="w-4 h-4 text-red-400" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-[#E8F0F8]">Leave Workspace</p>
+          <p className="text-xs text-[#7A9BBF]">
+            Remove yourself from <span className="text-[#E8F0F8]">{workspaceName}</span>
+          </p>
+        </div>
+      </div>
+
+      <div className="px-6 py-5">
+        {!confirming ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[#7A9BBF] max-w-sm">
+              You will lose access to all channels, tasks, and documents in this workspace.
+              You can rejoin later with an invite link or join code.
+            </p>
+            <button
+              onClick={() => setConfirming(true)}
+              className="ml-4 shrink-0 flex items-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Leave workspace
+            </button>
+          </div>
+        ) : (
+          <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-[#E8F0F8] text-sm">
+                  Are you sure you want to leave <span className="text-red-400">{workspaceName}</span>?
+                </p>
+                <p className="text-xs text-[#7A9BBF] mt-1">
+                  This action will immediately remove your access. You cannot undo this yourself.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => leaveMutation.mutate()}
+                disabled={leaveMutation.isPending}
+                className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
+                {leaveMutation.isPending
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Leaving…</>
+                  : <><LogOut className="w-4 h-4" /> Yes, leave workspace</>}
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                disabled={leaveMutation.isPending}
+                className="px-4 py-2 rounded-lg text-sm text-[#7A9BBF] hover:text-[#E8F0F8] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
