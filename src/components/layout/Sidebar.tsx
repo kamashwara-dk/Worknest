@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CheckSquare, MessageSquare, Calendar,
   FileText, Users, Megaphone, BarChart3, User, ChevronLeft,
-  ChevronRight, X, StickyNote, Building2, ChevronDown,
+  ChevronRight, X, StickyNote, Building2, ChevronDown, Settings,
 } from 'lucide-react';
 import { useUIStore } from '@/store/useUIStore';
 import { useChatStore } from '@/store/useChatStore';
@@ -27,6 +27,7 @@ function useNavItems(slug: string) {
     { label: 'Team',          href: `${base}/team`,          icon: Users },
     { label: 'Announcements', href: `${base}/announcements`, icon: Megaphone },
     { label: 'Analytics',     href: `${base}/analytics`,     icon: BarChart3 },
+    { label: 'Settings',      href: `${base}/settings`,      icon: Settings },
   ];
 }
 
