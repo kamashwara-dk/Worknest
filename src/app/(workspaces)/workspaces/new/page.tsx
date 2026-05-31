@@ -15,12 +15,11 @@ export default function NewWorkspacePage() {
 
   const createMutation = trpc.workspaces.create.useMutation({
     onSuccess: (workspace) => {
-      const membership = workspace.memberships[0];
       setWorkspace({
         id: workspace.id,
         slug: workspace.slug,
         name: workspace.name,
-        role: membership.role,
+        role: 'OWNER', // creator is always the owner
       });
       toast.success(`Workspace "${workspace.name}" created`);
       router.push(`/w/${workspace.slug}/dashboard`);

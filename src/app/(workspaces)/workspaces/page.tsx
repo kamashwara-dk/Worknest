@@ -28,6 +28,24 @@ export default function WorkspacesPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const joinByCodeMutation = trpc.workspaces.joinByCode.useMutation({
+    onSuccess: ({ membership, workspace }) => {
+      setWorkspace({ id: workspace.id, slug: workspace.slug, name: workspace.name, role: membership.role });
+      toast.success(`Joined "${workspace.name}"`);
+      router.push(`/w/${workspace.slug}/dashboard`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const joinLinkMutation = trpc.workspaces.inviteLinks.accept.useMutation({
+    onSuccess: ({ membership, workspace }) => {
+      setWorkspace({ id: workspace.id, slug: workspace.slug, name: workspace.name, role: membership.role });
+      toast.success(`Joined "${workspace.name}"`);
+      router.push(`/w/${workspace.slug}/dashboard`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   function handleSelect(ws: { id: string; slug: string; name: string; role: 'OWNER' | 'ADMIN' | 'MANAGER' | 'MEMBER' }) {
     setWorkspace({ id: ws.id, slug: ws.slug, name: ws.name, role: ws.role });
     router.push(`/w/${ws.slug}/dashboard`);
@@ -39,22 +57,39 @@ export default function WorkspacesPage() {
     router.push('/login');
   }
 
-  // Extract token from a full invite URL or use raw token
-  function parseToken(input: string): string {
+  // Extract token from a full invite URL or use raw token/code
+  function parseInput(input: string): { type: 'link' | 'code'; value: string } {
+    const trimmed = input.trim();
+    // Full URL — extract token from /invite/TOKEN
     try {
-      const url = new URL(input);
+      const url = new URL(trimmed);
       const parts = url.pathname.split('/');
-      return parts[parts.length - 1] ?? input.trim();
-    } catch {
-      return input.trim();
+      const inviteIdx = parts.indexOf('invite');
+      if (inviteIdx !== -1 && parts[inviteIdx + 1]) {
+        return { type: 'link', value: parts[inviteIdx + 1] };
+      }
+    } catch { /* not a URL */ }
+
+    // Looks like a join code: 3 chars, dash, 3 chars (e.g. XK9-TZ2)
+    if (/^[A-Z0-9]{3}-?[A-Z0-9]{3}$/i.test(trimmed.replace(/\s/g, ''))) {
+      return { type: 'code', value: trimmed };
     }
+
+    // Default: treat as invite link token
+    return { type: 'link', value: trimmed };
   }
+
+  const isJoinPending = acceptMutation.isPending || joinByCodeMutation.isPending || joinLinkMutation.isPending;
 
   function handleJoin(e: React.FormEvent) {
     e.preventDefault();
-    const token = parseToken(inviteToken);
-    if (!token) return;
-    acceptMutation.mutate({ token });
+    if (!inviteToken.trim()) return;
+    const { type, value } = parseInput(inviteToken);
+    if (type === 'code') {
+      joinByCodeMutation.mutate({ code: value });
+    } else {
+      joinLinkMutation.mutate({ token: value });
+    }
   }
 
   return (
@@ -170,8 +205,8 @@ export default function WorkspacesPage() {
                     <Link2 className="w-5 h-5 text-[#BFA181]" />
                   </div>
                   <div>
-                    <p className="font-semibold text-[#E8F0F8]">Join via invite</p>
-                    <p className="text-xs text-[#7A9BBF]">Paste an invite link or token from your team</p>
+                    <p className="font-semibold text-[#E8F0F8]">Join a workspace</p>
+                    <p className="text-xs text-[#7A9BBF]">Enter a code or paste an invite link</p>
                   </div>
                 </div>
 
@@ -181,8 +216,8 @@ export default function WorkspacesPage() {
                       type="text"
                       value={inviteToken}
                       onChange={(e) => setInviteToken(e.target.value)}
-                      placeholder="https://worknest.app/invite/abc123  or  abc123"
-                      className="w-full bg-[#112540] border border-[#1E3A5F] rounded-lg px-4 py-3 pr-10 text-[#E8F0F8] placeholder-[#7A9BBF]/60 text-sm focus:outline-none focus:border-[#178582] transition-colors"
+                      placeholder="XK9-TZ2  or  https://…/invite/abc123"
+                      className="w-full bg-[#112540] border border-[#1E3A5F] rounded-lg px-4 py-3 pr-10 text-[#E8F0F8] placeholder-[#7A9BBF]/60 text-sm focus:outline-none focus:border-[#178582] transition-colors font-mono tracking-wide"
                       autoFocus
                     />
                     {inviteToken && (
@@ -196,12 +231,21 @@ export default function WorkspacesPage() {
                     )}
                   </div>
 
+                  {/* Hint about what was detected */}
+                  {inviteToken.trim() && (
+                    <p className="text-xs text-[#7A9BBF]">
+                      {/^[A-Z0-9]{3}-?[A-Z0-9]{3}$/i.test(inviteToken.trim().replace(/\s/g, ''))
+                        ? '🔑 Workspace join code detected'
+                        : '🔗 Invite link detected'}
+                    </p>
+                  )}
+
                   <button
                     type="submit"
-                    disabled={!inviteToken.trim() || acceptMutation.isPending}
+                    disabled={!inviteToken.trim() || isJoinPending}
                     className="w-full flex items-center justify-center gap-2 bg-[#BFA181] hover:bg-[#BFA181]/90 disabled:opacity-50 disabled:cursor-not-allowed text-[#0A1828] font-semibold py-3 rounded-lg transition-colors"
                   >
-                    {acceptMutation.isPending ? (
+                    {isJoinPending ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Joining…</>
                     ) : (
                       <><ArrowRight className="w-4 h-4" /> Join Workspace</>
@@ -209,9 +253,23 @@ export default function WorkspacesPage() {
                   </button>
                 </form>
 
-                <p className="text-xs text-[#7A9BBF] mt-4 text-center">
-                  Ask your workspace admin to send you an invite link from their Settings page.
-                </p>
+                {/* Divider */}
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-[#1E3A5F]" />
+                  <span className="text-xs text-[#7A9BBF]">two ways to join</span>
+                  <div className="flex-1 h-px bg-[#1E3A5F]" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs text-[#7A9BBF]">
+                  <div className="bg-[#112540] rounded-lg p-3 border border-[#1E3A5F]">
+                    <p className="font-semibold text-[#E8F0F8] mb-1">🔑 Join code</p>
+                    <p>A short code like <span className="font-mono text-[#BFA181]">XK9-TZ2</span> shared by your admin</p>
+                  </div>
+                  <div className="bg-[#112540] rounded-lg p-3 border border-[#1E3A5F]">
+                    <p className="font-semibold text-[#E8F0F8] mb-1">🔗 Invite link</p>
+                    <p>A full URL from your admin's workspace settings</p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
