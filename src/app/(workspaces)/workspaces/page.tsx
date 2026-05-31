@@ -260,7 +260,7 @@ export default function WorkspacesPage() {
                   <div className="flex-1 h-px bg-[#1E3A5F]" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs text-[#7A9BBF]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-[#7A9BBF]">
                   <div className="bg-[#112540] rounded-lg p-3 border border-[#1E3A5F]">
                     <p className="font-semibold text-[#E8F0F8] mb-1">🔑 Join code</p>
                     <p>A short code like <span className="font-mono text-[#BFA181]">XK9-TZ2</span> shared by your admin</p>

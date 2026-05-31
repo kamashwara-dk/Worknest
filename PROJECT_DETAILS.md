@@ -8,7 +8,7 @@
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
-2. [What's New in v0.2](#2-whats-new-in-v02)
+2. [What's New in v0.3](#2-whats-new-in-v03)
 3. [Who It's Built For](#3-who-its-built-for)
 4. [Core Modules & Features](#4-core-modules--features)
 5. [Tech Stack](#5-tech-stack)
@@ -18,67 +18,65 @@
 9. [Role-Based Access Control](#9-role-based-access-control)
 10. [Invitation System](#10-invitation-system)
 11. [Private Notes](#11-private-notes)
-12. [External Service Integrations](#12-external-service-integrations)
-13. [Security Model](#13-security-model)
-14. [Responsive Design](#14-responsive-design)
-15. [Design System](#15-design-system)
-16. [Environment Variables](#16-environment-variables)
-17. [NPM Scripts](#17-npm-scripts)
-18. [Future Scope](#18-future-scope)
+12. [Direct Messaging System](#12-direct-messaging-system)
+13. [Announcement System](#13-announcement-system)
+14. [External Service Integrations](#14-external-service-integrations)
+15. [Security Model](#15-security-model)
+16. [Responsive Design](#16-responsive-design)
+17. [Design System](#17-design-system)
+18. [Environment Variables](#18-environment-variables)
+19. [NPM Scripts](#19-npm-scripts)
+20. [Future Scope](#20-future-scope)
 
 ---
 
 ## 1. Project Overview
 
-WorkNest is a **unified internal productivity platform** that consolidates the tools a modern team uses every day into a single, cohesive interface. Instead of juggling Slack for chat, Jira for tasks, a separate HR portal for leaves, Google Docs for documents, and spreadsheets for analytics — WorkNest brings all of it under one roof.
+WorkNest is a **unified internal productivity platform** that consolidates the tools a modern team uses every day into a single, cohesive interface.
 
 | Property | Value |
 |----------|-------|
 | App Name | WorkNest |
-| Version | 0.2.0 |
+| Version | 0.3.0 |
 | Type | Full-Stack Web Application |
 | Rendering | Server-Side + Client-Side (Hybrid) |
 | Deployment Target | Vercel (Edge-compatible) |
 | Database | Supabase PostgreSQL |
 | Auth | Supabase Auth (Email + Google OAuth) |
-| Real-time | Supabase Realtime (WebSockets) |
+| Real-time | Supabase Realtime (WebSockets + Presence) |
 | Multi-tenancy | Workspace-scoped data isolation |
 
 ---
 
-## 2. What's New in v0.2
+## 2. What's New in v0.3
 
-### Multi-Tenant Workspaces
-Every user can create one or more private **workspaces**. All data — tasks, channels, messages, documents, leave requests, announcements, and notifications — is fully isolated per workspace. A user can belong to multiple workspaces simultaneously and switch between them from the workspace picker.
+### 1-on-1 Direct Messages
+WhatsApp-style DMs alongside the existing channel system. Any workspace member can start a private conversation with any other member. The `Conversation` model stores the pair with a unique constraint preventing duplicates. Messages are delivered in real-time via Supabase Realtime, scoped strictly to the active conversation.
 
-### Workspace Join Code
-Each workspace has a unique human-readable `XXX-XXX` alphanumeric code (e.g. `TTS-KUW`). The workspace owner can share this code verbally or in a message. Any authenticated user can enter it on the "Join a Workspace" tab to become a member instantly. Owners can regenerate or disable the code at any time from Settings.
+### Presence Indicators
+Real-time online/offline status for all workspace members using Supabase Presence. Green dots appear next to member avatars in the DM sidebar and the "New Chat" member picker. Presence is tracked per workspace and cleaned up automatically on disconnect.
 
-### Reusable Invite Links
-Owners can generate shareable `/invite/[token]` URLs from the Settings page. Each link supports:
-- Optional **label** (e.g. "Engineering team")
-- Optional **max uses** (auto-deactivates when reached)
-- Optional **expiry date**
-- Manual deactivation or deletion
+### Optimistic UI for Chat
+Messages appear in the UI the instant the user hits Send — before the server responds. Built with TanStack React Query's `onMutate` hook. If the server returns an error, the optimistic message is automatically removed and a toast is shown. This eliminates all perceived latency.
 
-Any authenticated user who visits the link can join the workspace as a Member.
+### Infinite Scroll Message History
+Channel and DM message history uses cursor-based pagination via `useInfiniteQuery`. The initial load fetches the 50 most recent messages. Scrolling to the top of the thread automatically fetches the next page. No full-list re-renders.
 
-### Role-Based Access Control (RBAC)
-Four workspace roles with strict server-side enforcement:
+### Two-Tiered Announcement System
+- **Workspace Announcements** — posted by Managers/Admins/Owners, visible only to that workspace's members
+- **Global Announcements** — posted by Super Admins (`isSuperAdmin: true` on the User model), visible to all users across all workspaces on the Global Updates tab
 
-| Role | Description |
-|------|-------------|
-| **Owner** | Full control — invite tools, delete workspace, all admin actions |
-| **Admin** | Manage members, update workspace settings |
-| **Manager** | Approve leaves, create announcements |
-| **Member** | Standard access — tasks, chat, documents, leaves |
+### Note → Announcement Sharing
+A `Megaphone` button on each private note card opens a modal to publish the note as a workspace announcement. The system checks that the user has Manager/Admin/Owner role in the target workspace before publishing. Users with no eligible workspaces see a warning instead.
 
-Invite tools (join code + invite links) are exclusively visible to and usable by the **Owner**. The backend enforces this via a dedicated `workspaceOwnerProcedure` middleware that throws `FORBIDDEN` for any other role.
-
-### Private Notes
-Each authenticated user has a personal note-taking dashboard at `/notes`. Notes are:
-- **Completely private** — never shared with workspace members
-- **Not workspace-scoped** — accessible regardless of which workspace is active
+### What's New in v0.2 (retained)
+- Multi-tenant workspaces with full data isolation
+- Workspace join code (`XXX-XXX` format)
+- Reusable invite links with max-uses and expiry
+- Role-Based Access Control (Owner/Admin/Manager/Member)
+- Private notes dashboard
+- Leave workspace / Delete workspace
+- Task delete permissions (creator or owner only)- **Not workspace-scoped** — accessible regardless of which workspace is active
 - Supports pinning, tagging, search, and delete
 - Stored in a separate `Note` model with `userId` as the only scope
 
@@ -442,7 +440,64 @@ Features: create, update, delete, pin/unpin, search by title/content, tag filter
 
 ---
 
-## 12. External Service Integrations
+## 12. Direct Messaging System
+
+### Architecture
+The DM system introduces a `Conversation` model that links exactly two workspace members. A unique constraint `@@unique([workspaceId, memberOneId, memberTwoId])` with canonical ordering (smaller ID = memberOne) ensures only one conversation can exist per pair per workspace.
+
+`Message` now has an optional `conversationId` alongside the existing optional `channelId`. A message belongs to exactly one thread — either a channel or a conversation, never both.
+
+### tRPC Endpoints
+| Procedure | Description |
+|-----------|-------------|
+| `chat.dm.conversations` | List all DM threads for the current user with last message preview |
+| `chat.dm.getOrCreate` | Upsert a conversation between two members (canonical ordering) |
+| `chat.dm.messages` | Cursor-based paginated message history (verifies participation) |
+| `chat.dm.send` | Send a DM (verifies participation before writing) |
+
+### Optimistic Updates
+`MessageInput` uses TanStack React Query's `onMutate` to inject a temporary message into the store immediately. `onSuccess` replaces it with the real server response. `onError` removes it and shows a toast. Zero perceived latency.
+
+### Presence
+`usePresence(workspaceId, userId)` subscribes to a Supabase Presence channel scoped to the workspace. The full set of online user IDs is stored in `useChatStore.onlineUserIds` (a `Set<string>`). Green dots appear in the DM sidebar and the "New Chat" member picker.
+
+### Realtime Scoping
+`useRealtimeMessages` accepts either `channelId` or `conversationId`. The Supabase filter is strictly `channelId=eq.X` or `conversationId=eq.X` — no other threads' messages leak in. Messages from the current user are skipped (already in store via optimistic update).
+
+### Infinite Scroll
+Both channel and DM message lists use `useInfiniteQuery` with cursor-based pagination. Initial load: 50 messages. Scrolling to the top triggers `fetchNextPage`. No full-list re-renders.
+
+---
+
+## 13. Announcement System
+
+### Two Tiers
+
+**Workspace Announcements** (existing, enhanced)
+- Posted by Manager/Admin/Owner roles in a specific workspace
+- Visible only to that workspace's members
+- Supports pinning, priority, expiry
+
+**Global Announcements** (new)
+- Posted by Super Admins (`User.isSuperAdmin = true`)
+- Stored in the separate `GlobalAnnouncement` model (no `workspaceId`)
+- Visible to all authenticated users across all workspaces
+- Displayed on the "Global Updates" tab of the Announcements page
+
+### Note → Announcement Sharing
+A `Megaphone` button on each private note card opens a modal that:
+1. Lists only workspaces where the user has Manager/Admin/Owner role
+2. Lets the user set priority and pin before publishing
+3. Calls `announcements.shareFromNote` which verifies the role server-side before creating the announcement and notifying workspace members
+
+### UI
+The Announcements page has two tabs:
+- **Workspace Announcements** — scoped to the active workspace
+- **Global Updates** — system-wide, with a badge showing the count
+
+---
+
+## 14. External Service Integrations
 
 ### Supabase
 - **PostgreSQL** — Primary relational database
@@ -466,7 +521,7 @@ Features: create, update, delete, pin/unpin, search by title/content, tag filter
 
 ---
 
-## 13. Security Model
+## 15. Security Model
 
 ### Authentication
 - All sessions managed by Supabase Auth (JWT-based)
@@ -490,7 +545,7 @@ Features: create, update, delete, pin/unpin, search by title/content, tag filter
 
 ---
 
-## 14. Responsive Design
+## 16. Responsive Design
 
 WorkNest is built mobile-first using Tailwind CSS v4 utility classes.
 
@@ -511,7 +566,7 @@ WorkNest is built mobile-first using Tailwind CSS v4 utility classes.
 
 ---
 
-## 15. Design System
+## 17. Design System
 
 ### Color Palette
 | Token | Hex | Usage |
@@ -533,7 +588,7 @@ WorkNest is built mobile-first using Tailwind CSS v4 utility classes.
 
 ---
 
-## 16. Environment Variables
+## 18. Environment Variables
 
 ```bash
 # Supabase
@@ -559,7 +614,7 @@ RESEND_FROM_EMAIL=noreply@yourdomain.com
 
 ---
 
-## 17. NPM Scripts
+## 19. NPM Scripts
 
 ```bash
 npm run dev          # Start development server (localhost:3000)
@@ -578,7 +633,7 @@ npm run test:e2e     # Run Playwright e2e tests
 
 ---
 
-## 18. Future Scope
+## 20. Future Scope
 
 ### Near-term
 - **Video Conferencing** — Embed Jitsi Meet for in-app video calls

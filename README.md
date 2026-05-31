@@ -1,21 +1,24 @@
 # WorkNest — Your team's daily command center
 
-A full-featured, multi-tenant internal productivity platform. Teams create private workspaces, invite members via link or join code, and collaborate across tasks, chat, leaves, documents, and analytics — all in one place.
+A full-featured, multi-tenant internal productivity platform. Teams create private workspaces, invite members via link or join code, and collaborate across tasks, real-time chat (channels + DMs), leaves, documents, and analytics — all in one place.
 
 ---
 
-## What's New (v0.2)
+## Feature Highlights
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-tenant Workspaces** | Users create isolated workspaces. All data (tasks, chat, documents) is scoped per workspace. |
-| **Workspace Join Code** | A short `XXX-XXX` code owners can share. Anyone can type it on the Join tab to become a member. |
-| **Reusable Invite Links** | Owners generate shareable `/invite/[token]` URLs with optional max-uses and expiry. |
-| **Role-Based Access Control** | Four workspace roles: Owner · Admin · Manager · Member. Invite tools are Owner-only. |
-| **Private Notes** | Each user has a personal note-taking dashboard — never shared, never workspace-scoped. |
-| **Leave Workspace** | Non-owner members can voluntarily leave a workspace from Settings. |
-| **Delete Workspace** | Owners can permanently delete a workspace (requires typing the name to confirm). |
+| **Multi-tenant Workspaces** | Isolated workspaces — all data scoped per workspace. Switch between workspaces from the picker. |
+| **Workspace Join Code** | Short `XXX-XXX` code owners share. Anyone types it on the Join tab to become a member instantly. |
+| **Reusable Invite Links** | Owners generate `/invite/[token]` URLs with optional max-uses and expiry. |
+| **Role-Based Access Control** | Four roles: Owner · Admin · Manager · Member. Invite tools are Owner-only. |
+| **Private Notes** | Personal note-taking dashboard — never shared, never workspace-scoped. Share notes as announcements. |
+| **Direct Messages** | WhatsApp-style 1-on-1 DMs alongside channels. Presence indicators show who's online. |
+| **Two-Tiered Announcements** | Workspace announcements (Manager+) and system-wide Global announcements (Super Admin). |
+| **Note → Announcement** | Share a private note as a workspace announcement with one click. |
+| **Optimistic Chat** | Messages appear instantly in the UI before the server confirms — with automatic rollback on error. |
 | **Task Delete Permissions** | Only the task creator or workspace owner can delete a task. |
+| **Leave / Delete Workspace** | Members can leave; owners can permanently delete (requires typing the name to confirm). |
 
 ---
 
@@ -28,10 +31,11 @@ A full-featured, multi-tenant internal productivity platform. Teams create priva
 | Styling | Tailwind CSS v4 (responsive, mobile-first) |
 | Animations | Framer Motion v12 |
 | State | Zustand v5 + TanStack React Query v5 |
-| API | tRPC v11 (end-to-end type-safe, no REST) |
+| API | tRPC v11 (end-to-end type-safe) |
 | ORM | Prisma v5 |
 | Database | Supabase (PostgreSQL + Realtime + Storage) |
 | Auth | Supabase Auth (email/password + Google OAuth) |
+| Real-time | Supabase Realtime (channels, DMs, presence) |
 | Email | Resend SDK |
 | Cache / Rate-limit | Upstash Redis |
 | Forms | React Hook Form v7 + Zod v4 |
@@ -39,6 +43,8 @@ A full-featured, multi-tenant internal productivity platform. Teams create priva
 | Drag & Drop | @dnd-kit |
 | Rich Text | Tiptap v3 |
 | Icons | lucide-react |
+
+> **Note:** The backend is Next.js API routes + tRPC — not a separate Flask server. All server logic lives in `src/server/routers/`.
 
 ---
 
@@ -54,7 +60,7 @@ npm install
 
 ### 2. Configure environment variables
 
-Create `.env.local` with the following:
+Create `.env.local`:
 
 ```bash
 # Supabase
@@ -62,7 +68,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
-# Database (Supabase PostgreSQL)
+# Database — Transaction pooler for runtime, Direct for migrations
 DATABASE_URL="postgresql://...?pgbouncer=true&connection_limit=1"
 DIRECT_URL="postgresql://..."
 
@@ -78,8 +84,6 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-> **Important:** Use the Transaction pooler URL (port 6543) for `DATABASE_URL` and include `?pgbouncer=true&connection_limit=1` to avoid connection exhaustion on serverless.
-
 ### 3. Set up the database
 
 ```bash
@@ -93,7 +97,7 @@ The seed prints the workspace join code and login credentials.
 
 In your Supabase dashboard:
 1. **Auth → Providers** — enable Email and Google OAuth
-2. **Auth → URL Configuration** — add `http://localhost:3000/auth/callback` as a redirect URL
+2. **Auth → URL Configuration** — add `http://localhost:3000/auth/callback`
 3. **Database → Realtime** — enable for `Message` and `Notification` tables
 
 ### 5. Run the development server
@@ -116,36 +120,40 @@ Register / Login
     ├── Create new workspace       →  /workspaces/new
     └── Join a workspace           →  type join code  OR  paste invite link
             ↓
-/w/[slug]/dashboard   (workspace home)
-/w/[slug]/tasks       (Kanban + list view)
-/w/[slug]/chat        (real-time channels)
-/w/[slug]/leaves      (leave requests)
-/w/[slug]/documents   (rich text docs)
-/w/[slug]/team        (member directory)
-/w/[slug]/announcements
-/w/[slug]/analytics
-/w/[slug]/settings    (Owner: invite tools, delete | Members: leave)
-/notes                (private notes — no workspace scope)
-/profile              (personal profile)
+/w/[slug]/dashboard      workspace home — KPIs, tasks, announcements
+/w/[slug]/tasks          Kanban board + list view
+/w/[slug]/chat           Channels + 1-on-1 Direct Messages with presence
+/w/[slug]/leaves         Leave requests + approvals
+/w/[slug]/documents      Rich text document hub
+/w/[slug]/team           Member directory
+/w/[slug]/announcements  Workspace + Global tabs
+/w/[slug]/analytics      Charts, heatmaps, CSV export
+/w/[slug]/settings       Owner: invite tools, delete | Members: leave
+/notes                   Private notes (share to announcements)
+/profile                 Personal profile
+/invite/[token]          Invite link acceptance page
 ```
 
 ---
 
 ## Role-Based Access Control
 
-| Action | Member | Manager | Admin | Owner |
-|--------|--------|---------|-------|-------|
-| View workspace data | ✅ | ✅ | ✅ | ✅ |
-| Create tasks | ✅ | ✅ | ✅ | ✅ |
-| Delete own tasks | ✅ | ✅ | ✅ | ✅ |
-| Delete any task | ❌ | ❌ | ❌ | ✅ |
-| Approve/reject leaves | ❌ | ✅ | ✅ | ✅ |
-| Create announcements | ❌ | ✅ | ✅ | ✅ |
-| Manage member roles | ❌ | ❌ | ✅ | ✅ |
-| View join code | ❌ | ❌ | ❌ | ✅ |
-| Create invite links | ❌ | ❌ | ❌ | ✅ |
-| Delete workspace | ❌ | ❌ | ❌ | ✅ |
-| Leave workspace | ✅ | ✅ | ✅ | ❌ |
+| Action | Member | Manager | Admin | Owner | Super Admin |
+|--------|--------|---------|-------|-------|-------------|
+| View workspace data | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Send channel messages / DMs | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Create tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Delete own tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Delete any task | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Approve/reject leaves | ❌ | ✅ | ✅ | ✅ | — |
+| Create workspace announcements | ❌ | ✅ | ✅ | ✅ | — |
+| Share note as announcement | ❌ | ✅ | ✅ | ✅ | — |
+| Manage member roles | ❌ | ❌ | ✅ | ✅ | — |
+| View join code | ❌ | ❌ | ❌ | ✅ | — |
+| Create invite links | ❌ | ❌ | ❌ | ✅ | — |
+| Delete workspace | ❌ | ❌ | ❌ | ✅ | — |
+| Leave workspace | ✅ | ✅ | ✅ | ❌ | — |
+| Post global announcements | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ---
 
@@ -161,46 +169,35 @@ worknest/
 │   │   ├── (landing)/         # Public landing page
 │   │   ├── (auth)/            # Login & Register
 │   │   ├── (app)/             # Workspace-agnostic routes
-│   │   │   ├── notes/         # Private notes dashboard
-│   │   │   └── profile/       # User profile
+│   │   │   ├── notes/         # Private notes (share to announcements)
+│   │   │   └── profile/
 │   │   ├── (workspaces)/      # Workspace picker + create
-│   │   │   └── workspaces/
 │   │   ├── w/[slug]/          # Workspace-scoped routes
-│   │   │   ├── dashboard/
-│   │   │   ├── tasks/
-│   │   │   ├── chat/
-│   │   │   ├── leaves/
-│   │   │   ├── documents/
-│   │   │   ├── team/
-│   │   │   ├── announcements/
-│   │   │   ├── analytics/
-│   │   │   └── settings/      # RBAC settings page
-│   │   ├── invite/[token]/    # Invite link acceptance
-│   │   └── api/
-│   │       ├── trpc/          # tRPC handler
-│   │       └── auth/          # Auth helpers
+│   │   │   ├── chat/          # Channels + DMs
+│   │   │   ├── announcements/ # Two-tiered (workspace + global)
+│   │   │   └── settings/      # RBAC settings
+│   │   └── invite/[token]/    # Invite link acceptance
 │   ├── components/
-│   │   ├── layout/            # Sidebar, Topbar, AppShell, WorkspaceBootstrap
-│   │   ├── tasks/             # Kanban, TaskCard (with delete menu), TaskModal
-│   │   ├── chat/              # Channels, messages
-│   │   └── documents/         # Rich text editor
-│   ├── server/
-│   │   ├── trpc.ts            # Procedure tiers incl. workspaceOwnerProcedure
-│   │   ├── context.ts         # Resolves workspace from x-workspace-id header
-│   │   └── routers/
-│   │       ├── workspaces.ts  # Workspace CRUD, join code, invite links
-│   │       ├── invitations.ts # Email invitations
-│   │       ├── notes.ts       # Private notes
-│   │       └── ...            # tasks, chat, leaves, documents, etc.
-│   ├── lib/
-│   │   ├── joinCode.ts        # XXX-XXX code generator + normaliser
-│   │   ├── supabase/
-│   │   ├── prisma.ts
-│   │   ├── redis.ts
-│   │   └── resend.ts
+│   │   ├── chat/
+│   │   │   ├── ChannelList.tsx
+│   │   │   ├── DMList.tsx         # DM sidebar with presence dots
+│   │   │   ├── MessageList.tsx    # Infinite scroll, optimistic UI
+│   │   │   ├── MessageInput.tsx   # Optimistic send with rollback
+│   │   │   └── MessageBubble.tsx
+│   │   ├── layout/            # Sidebar, Topbar, WorkspaceBootstrap
+│   │   └── tasks/             # Kanban, TaskCard, TaskModal
+│   ├── server/routers/
+│   │   ├── chat.ts            # channels + dm sub-routers
+│   │   ├── announcements.ts   # workspace + global + shareFromNote
+│   │   ├── workspaces.ts      # CRUD, join code, invite links
+│   │   ├── notes.ts           # Private notes
+│   │   └── ...
+│   ├── hooks/
+│   │   ├── useRealtimeMessages.ts  # Scoped Supabase subscription
+│   │   └── usePresence.ts          # Supabase Presence for online status
 │   └── store/
-│       ├── useWorkspaceStore.ts  # Active workspace (persisted)
-│       └── ...
+│       ├── useWorkspaceStore.ts
+│       └── useChatStore.ts    # Messages, unread counts, online users
 └── .github/workflows/ci.yml
 ```
 
