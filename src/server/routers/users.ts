@@ -9,7 +9,7 @@ export const usersRouter = createTRPCRouter({
       where: { id: ctx.dbUser!.id },
       include: {
         _count: {
-          select: { tasks: true, leaveRequests: true, documents: true, notes: true },
+          select: { tasks: true, leaveRequests: true, documents: true },
         },
       },
     });
