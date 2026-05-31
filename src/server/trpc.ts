@@ -152,6 +152,16 @@ export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
 export const managerProcedure   = t.procedure.use(enforceUserIsAuthed).use(enforceUserIsManager);
 export const adminProcedure     = t.procedure.use(enforceUserIsAuthed).use(enforceUserIsAdmin);
 
+// Super admin — system-wide, not workspace-scoped
+export const superAdminProcedure = t.procedure.use(enforceUserIsAuthed).use(
+  t.middleware(({ ctx, next }) => {
+    if (!ctx.dbUser?.isSuperAdmin) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'Super admin access required' });
+    }
+    return next({ ctx: { ...ctx, dbUser: ctx.dbUser } });
+  })
+);
+
 // Workspace-scoped procedures (require x-workspace-id header + membership)
 export const workspaceProcedure        = t.procedure.use(enforceUserIsAuthed).use(enforceWorkspaceMember);
 export const workspaceManagerProcedure = t.procedure.use(enforceUserIsAuthed).use(enforceWorkspaceMember).use(enforceWorkspaceManager);
