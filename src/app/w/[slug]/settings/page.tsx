@@ -30,9 +30,9 @@ export default function SettingsPage() {
   const isMember = !isOwner; // MEMBER | MANAGER | ADMIN all see the same restricted view
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-[#E8F0F8] font-syne">Workspace Settings</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-[#E8F0F8] font-syne">Workspace Settings</h1>
         <p className="text-[#7A9BBF] text-sm mt-1">
           {isOwner ? 'Manage your workspace, invites, and access controls' : 'Your workspace membership settings'}
         </p>
@@ -399,14 +399,14 @@ function DeleteWorkspaceSection({ workspaceName, onDeleted }: { workspaceName: s
 
       <div className="px-6 py-5">
         {!confirming ? (
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-[#7A9BBF]">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <p className="text-sm text-[#7A9BBF] flex-1">
               This will permanently delete <span className="text-[#E8F0F8] font-medium">{workspaceName}</span> including
               all tasks, messages, documents, and member data. This cannot be undone.
             </p>
             <button
               onClick={() => setConfirming(true)}
-              className="shrink-0 flex items-center gap-2 bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="self-start sm:self-auto shrink-0 flex items-center gap-2 bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               <Trash2 className="w-4 h-4" /> Delete workspace
             </button>
@@ -484,13 +484,13 @@ function LeaveWorkspaceSection({ workspaceName, onLeft }: { workspaceName: strin
 
       <div className="px-6 py-5">
         {!confirming ? (
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-[#7A9BBF]">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <p className="text-sm text-[#7A9BBF] flex-1">
               You will lose access to all channels, tasks, and documents. You can rejoin later with an invite link or join code.
             </p>
             <button
               onClick={() => setConfirming(true)}
-              className="shrink-0 flex items-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="self-start sm:self-auto shrink-0 flex items-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               <LogOut className="w-4 h-4" /> Leave workspace
             </button>

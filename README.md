@@ -1,79 +1,100 @@
 # WorkNest — Your team's daily command center
 
-A full-featured internal employee productivity hub covering task management, real-time team chat, leave requests, document sharing, team directory, announcements, and personal + team analytics.
+A full-featured, multi-tenant internal productivity platform. Teams create private workspaces, invite members via link or join code, and collaborate across tasks, chat, leaves, documents, and analytics — all in one place.
+
+---
+
+## What's New (v0.2)
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-tenant Workspaces** | Users create isolated workspaces. All data (tasks, chat, documents) is scoped per workspace. |
+| **Workspace Join Code** | A short `XXX-XXX` code owners can share. Anyone can type it on the Join tab to become a member. |
+| **Reusable Invite Links** | Owners generate shareable `/invite/[token]` URLs with optional max-uses and expiry. |
+| **Role-Based Access Control** | Four workspace roles: Owner · Admin · Manager · Member. Invite tools are Owner-only. |
+| **Private Notes** | Each user has a personal note-taking dashboard — never shared, never workspace-scoped. |
+| **Leave Workspace** | Non-owner members can voluntarily leave a workspace from Settings. |
+| **Delete Workspace** | Owners can permanently delete a workspace (requires typing the name to confirm). |
+| **Task Delete Permissions** | Only the task creator or workspace owner can delete a task. |
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 16 (App Router, Server Components) |
+| Framework | Next.js 16 (App Router, Server + Client Components) |
 | Language | TypeScript (strict mode) |
-| Styling | Tailwind CSS v4 |
-| Animations | Framer Motion v11 |
-| State | Zustand v4 + React Query v5 |
-| API | tRPC v11 (end-to-end type-safe) |
+| Styling | Tailwind CSS v4 (responsive, mobile-first) |
+| Animations | Framer Motion v12 |
+| State | Zustand v5 + TanStack React Query v5 |
+| API | tRPC v11 (end-to-end type-safe, no REST) |
 | ORM | Prisma v5 |
 | Database | Supabase (PostgreSQL + Realtime + Storage) |
-| Auth | Supabase Auth (email + Google OAuth) |
+| Auth | Supabase Auth (email/password + Google OAuth) |
 | Email | Resend SDK |
-| Cache | Upstash Redis + Ratelimit |
-| Forms | React Hook Form v7 + Zod v3 |
-| Charts | Recharts v2 |
+| Cache / Rate-limit | Upstash Redis |
+| Forms | React Hook Form v7 + Zod v4 |
+| Charts | Recharts v3 |
 | Drag & Drop | @dnd-kit |
-| Rich Text | Tiptap v2 |
+| Rich Text | Tiptap v3 |
 | Icons | lucide-react |
+
+---
 
 ## Getting Started
 
 ### 1. Clone and install
 
 ```bash
-git clone <repo-url>
-cd worknest
+git clone https://github.com/kamashwara-dk/Worknest.git
+cd Worknest
 npm install
 ```
 
 ### 2. Configure environment variables
 
+Create `.env.local` with the following:
+
 ```bash
-cp .env.local.example .env.local
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Database (Supabase PostgreSQL)
+DATABASE_URL="postgresql://...?pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://..."
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Upstash Redis
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+
+# Resend (email)
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-Fill in all values in `.env.local`:
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
-| `DATABASE_URL` | PostgreSQL connection string (pooled) |
-| `DIRECT_URL` | PostgreSQL direct connection (for migrations) |
-| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST URL |
-| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token |
-| `RESEND_API_KEY` | Resend API key for emails |
-| `RESEND_FROM_EMAIL` | Sender email address |
-| `NEXT_PUBLIC_APP_URL` | Your app URL (http://localhost:3000 for dev) |
+> **Important:** Use the Transaction pooler URL (port 6543) for `DATABASE_URL` and include `?pgbouncer=true&connection_limit=1` to avoid connection exhaustion on serverless.
 
 ### 3. Set up the database
 
 ```bash
-# Push schema to your Supabase database
-npm run db:push
-
-# Or run migrations
-npm run db:migrate
-
-# Seed with demo data
-npm run db:seed
+npm run db:push     # Push schema to Supabase
+npm run db:seed     # Create admin user + default workspace
 ```
 
-### 4. Set up Supabase Auth
+The seed prints the workspace join code and login credentials.
+
+### 4. Configure Supabase
 
 In your Supabase dashboard:
-1. Enable **Email** auth provider
-2. Enable **Google** OAuth provider (add Client ID + Secret)
-3. Add redirect URL: `http://localhost:3000/auth/callback`
-4. Enable **Realtime** for tables: `Message`, `Notification`
+1. **Auth → Providers** — enable Email and Google OAuth
+2. **Auth → URL Configuration** — add `http://localhost:3000/auth/callback` as a redirect URL
+3. **Database → Realtime** — enable for `Message` and `Notification` tables
 
 ### 5. Run the development server
 
@@ -83,30 +104,68 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
-## Demo Accounts (after seeding)
+---
 
-| Role | Email | 
-|------|-------|
-| Admin | admin@worknest.app |
-| Manager | manager@worknest.app |
-| Employee | sarah@worknest.app |
-| Employee | james@worknest.app |
-| Employee | priya@worknest.app |
+## User Flow
 
-> Note: Demo accounts use seeded DB records. To log in, create matching Supabase Auth users with the same emails, or update the `supabaseId` fields in the seed to match your auth users.
+```
+Register / Login
+    ↓
+/workspaces  (workspace picker)
+    ├── Select existing workspace  →  /w/[slug]/dashboard
+    ├── Create new workspace       →  /workspaces/new
+    └── Join a workspace           →  type join code  OR  paste invite link
+            ↓
+/w/[slug]/dashboard   (workspace home)
+/w/[slug]/tasks       (Kanban + list view)
+/w/[slug]/chat        (real-time channels)
+/w/[slug]/leaves      (leave requests)
+/w/[slug]/documents   (rich text docs)
+/w/[slug]/team        (member directory)
+/w/[slug]/announcements
+/w/[slug]/analytics
+/w/[slug]/settings    (Owner: invite tools, delete | Members: leave)
+/notes                (private notes — no workspace scope)
+/profile              (personal profile)
+```
+
+---
+
+## Role-Based Access Control
+
+| Action | Member | Manager | Admin | Owner |
+|--------|--------|---------|-------|-------|
+| View workspace data | ✅ | ✅ | ✅ | ✅ |
+| Create tasks | ✅ | ✅ | ✅ | ✅ |
+| Delete own tasks | ✅ | ✅ | ✅ | ✅ |
+| Delete any task | ❌ | ❌ | ❌ | ✅ |
+| Approve/reject leaves | ❌ | ✅ | ✅ | ✅ |
+| Create announcements | ❌ | ✅ | ✅ | ✅ |
+| Manage member roles | ❌ | ❌ | ✅ | ✅ |
+| View join code | ❌ | ❌ | ❌ | ✅ |
+| Create invite links | ❌ | ❌ | ❌ | ✅ |
+| Delete workspace | ❌ | ❌ | ❌ | ✅ |
+| Leave workspace | ✅ | ✅ | ✅ | ❌ |
+
+---
 
 ## Project Structure
 
 ```
 worknest/
 ├── prisma/
-│   ├── schema.prisma          # Database schema
-│   └── seed.ts                # Demo data seeder
+│   ├── schema.prisma          # Full multi-tenant schema
+│   └── seed.ts                # Admin + workspace seeder
 ├── src/
 │   ├── app/
 │   │   ├── (landing)/         # Public landing page
 │   │   ├── (auth)/            # Login & Register
-│   │   ├── (app)/             # Protected app routes
+│   │   ├── (app)/             # Workspace-agnostic routes
+│   │   │   ├── notes/         # Private notes dashboard
+│   │   │   └── profile/       # User profile
+│   │   ├── (workspaces)/      # Workspace picker + create
+│   │   │   └── workspaces/
+│   │   ├── w/[slug]/          # Workspace-scoped routes
 │   │   │   ├── dashboard/
 │   │   │   ├── tasks/
 │   │   │   ├── chat/
@@ -115,82 +174,62 @@ worknest/
 │   │   │   ├── team/
 │   │   │   ├── announcements/
 │   │   │   ├── analytics/
-│   │   │   └── profile/
+│   │   │   └── settings/      # RBAC settings page
+│   │   ├── invite/[token]/    # Invite link acceptance
 │   │   └── api/
 │   │       ├── trpc/          # tRPC handler
 │   │       └── auth/          # Auth helpers
 │   ├── components/
-│   │   ├── landing/           # Landing page sections
-│   │   ├── layout/            # Sidebar, Topbar, Notifications
-│   │   ├── tasks/             # Kanban board, task cards
+│   │   ├── layout/            # Sidebar, Topbar, AppShell, WorkspaceBootstrap
+│   │   ├── tasks/             # Kanban, TaskCard (with delete menu), TaskModal
 │   │   ├── chat/              # Channels, messages
-│   │   ├── leaves/            # Leave forms
-│   │   ├── documents/         # Rich text editor
-│   │   └── analytics/         # Charts
+│   │   └── documents/         # Rich text editor
 │   ├── server/
-│   │   ├── trpc.ts            # tRPC init + procedures
-│   │   ├── context.ts         # Request context
-│   │   └── routers/           # All API routers
+│   │   ├── trpc.ts            # Procedure tiers incl. workspaceOwnerProcedure
+│   │   ├── context.ts         # Resolves workspace from x-workspace-id header
+│   │   └── routers/
+│   │       ├── workspaces.ts  # Workspace CRUD, join code, invite links
+│   │       ├── invitations.ts # Email invitations
+│   │       ├── notes.ts       # Private notes
+│   │       └── ...            # tasks, chat, leaves, documents, etc.
 │   ├── lib/
-│   │   ├── supabase/          # Client + server Supabase
-│   │   ├── prisma.ts          # Prisma client
-│   │   ├── redis.ts           # Upstash Redis
-│   │   ├── resend.ts          # Email helpers
-│   │   ├── animations.ts      # Framer Motion variants
-│   │   └── utils.ts           # Shared utilities
-│   ├── hooks/                 # Custom React hooks
-│   ├── store/                 # Zustand stores
-│   └── types/                 # TypeScript types
-├── .github/workflows/ci.yml   # GitHub Actions CI
-├── .env.local.example         # Environment template
-├── next.config.js
-├── tailwind.config.ts
-└── vercel.json
+│   │   ├── joinCode.ts        # XXX-XXX code generator + normaliser
+│   │   ├── supabase/
+│   │   ├── prisma.ts
+│   │   ├── redis.ts
+│   │   └── resend.ts
+│   └── store/
+│       ├── useWorkspaceStore.ts  # Active workspace (persisted)
+│       └── ...
+└── .github/workflows/ci.yml
 ```
+
+---
 
 ## Available Scripts
 
 ```bash
-npm run dev          # Start development server
-npm run build        # Production build
-npm run start        # Start production server
-npm run lint         # ESLint
+npm run dev          # Development server
+npm run build        # prisma generate + next build
+npm run start        # Production server
 npm run type-check   # TypeScript check
-npm run db:generate  # Generate Prisma client
+npm run db:generate  # Regenerate Prisma client
 npm run db:push      # Push schema to DB
-npm run db:migrate   # Run migrations
-npm run db:seed      # Seed demo data
-npm run db:studio    # Open Prisma Studio
-npm run test         # Run unit tests
-npm run test:e2e     # Run Playwright e2e tests
+npm run db:seed      # Seed admin + workspace
+npm run db:studio    # Prisma Studio GUI
+npm run test         # Unit tests
+npm run test:e2e     # Playwright e2e tests
 ```
 
-## Deployment
+---
 
-### Vercel (recommended)
+## Deployment (Vercel)
 
 1. Push to GitHub
-2. Import project in Vercel
-3. Add all environment variables
-4. Deploy
+2. Import in Vercel → add all env vars
+3. Deploy — `prisma generate` runs automatically before `next build`
 
-The `vercel.json` is pre-configured.
-
-### Environment Variables for Production
-
-Make sure to set all variables from `.env.local.example` in your Vercel project settings.
-
-## Features
-
-- **Dashboard** — KPI cards, task completion chart, activity feed, pinned announcements
-- **Tasks** — Kanban board with drag-and-drop, list view, filters, task modal
-- **Chat** — Real-time messaging via Supabase Realtime, channels, file sharing
-- **Leaves** — Request/approve/reject leaves, calendar view, email notifications
-- **Documents** — Rich text editor (Tiptap), auto-save, version history, public/private
-- **Team** — Directory with search, department filter, profile drawer
-- **Announcements** — Pinned announcements, priority badges, admin create/delete
-- **Analytics** — Task trends, priority charts, leave distribution, activity heatmap, CSV export
-- **Profile** — Edit personal info, view stats
+---
 
 ## License
 

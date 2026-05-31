@@ -1,24 +1,30 @@
 # WorkNest — Complete Project Documentation
 
 > **"Your team's daily command center."**
-> A full-featured internal employee productivity platform built for modern teams.
+> A full-featured, multi-tenant internal productivity platform built for modern teams.
 
 ---
 
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
-2. [Who It's Built For](#2-who-its-built-for)
-3. [Core Modules & Features](#3-core-modules--features)
-4. [Tech Stack](#4-tech-stack)
-5. [Libraries & Dependencies](#5-libraries--dependencies)
+2. [What's New in v0.2](#2-whats-new-in-v02)
+3. [Who It's Built For](#3-who-its-built-for)
+4. [Core Modules & Features](#4-core-modules--features)
+5. [Tech Stack](#5-tech-stack)
 6. [Architecture & Connectivity](#6-architecture--connectivity)
 7. [Database Schema](#7-database-schema)
-8. [External Service Integrations](#8-external-service-integrations)
-9. [Security Model](#9-security-model)
-10. [Design System](#10-design-system)
-11. [Who Benefits & How](#11-who-benefits--how)
-12. [Future Scope](#12-future-scope)
+8. [Multi-Tenant System](#8-multi-tenant-system)
+9. [Role-Based Access Control](#9-role-based-access-control)
+10. [Invitation System](#10-invitation-system)
+11. [Private Notes](#11-private-notes)
+12. [External Service Integrations](#12-external-service-integrations)
+13. [Security Model](#13-security-model)
+14. [Responsive Design](#14-responsive-design)
+15. [Design System](#15-design-system)
+16. [Environment Variables](#16-environment-variables)
+17. [NPM Scripts](#17-npm-scripts)
+18. [Future Scope](#18-future-scope)
 
 ---
 
@@ -29,140 +35,177 @@ WorkNest is a **unified internal productivity platform** that consolidates the t
 | Property | Value |
 |----------|-------|
 | App Name | WorkNest |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Type | Full-Stack Web Application |
 | Rendering | Server-Side + Client-Side (Hybrid) |
 | Deployment Target | Vercel (Edge-compatible) |
 | Database | Supabase PostgreSQL |
 | Auth | Supabase Auth (Email + Google OAuth) |
 | Real-time | Supabase Realtime (WebSockets) |
+| Multi-tenancy | Workspace-scoped data isolation |
 
 ---
 
-## 2. Who It's Built For
+## 2. What's New in v0.2
+
+### Multi-Tenant Workspaces
+Every user can create one or more private **workspaces**. All data — tasks, channels, messages, documents, leave requests, announcements, and notifications — is fully isolated per workspace. A user can belong to multiple workspaces simultaneously and switch between them from the workspace picker.
+
+### Workspace Join Code
+Each workspace has a unique human-readable `XXX-XXX` alphanumeric code (e.g. `TTS-KUW`). The workspace owner can share this code verbally or in a message. Any authenticated user can enter it on the "Join a Workspace" tab to become a member instantly. Owners can regenerate or disable the code at any time from Settings.
+
+### Reusable Invite Links
+Owners can generate shareable `/invite/[token]` URLs from the Settings page. Each link supports:
+- Optional **label** (e.g. "Engineering team")
+- Optional **max uses** (auto-deactivates when reached)
+- Optional **expiry date**
+- Manual deactivation or deletion
+
+Any authenticated user who visits the link can join the workspace as a Member.
+
+### Role-Based Access Control (RBAC)
+Four workspace roles with strict server-side enforcement:
+
+| Role | Description |
+|------|-------------|
+| **Owner** | Full control — invite tools, delete workspace, all admin actions |
+| **Admin** | Manage members, update workspace settings |
+| **Manager** | Approve leaves, create announcements |
+| **Member** | Standard access — tasks, chat, documents, leaves |
+
+Invite tools (join code + invite links) are exclusively visible to and usable by the **Owner**. The backend enforces this via a dedicated `workspaceOwnerProcedure` middleware that throws `FORBIDDEN` for any other role.
+
+### Private Notes
+Each authenticated user has a personal note-taking dashboard at `/notes`. Notes are:
+- **Completely private** — never shared with workspace members
+- **Not workspace-scoped** — accessible regardless of which workspace is active
+- Supports pinning, tagging, search, and delete
+- Stored in a separate `Note` model with `userId` as the only scope
+
+### Leave Workspace
+Non-owner members can voluntarily leave a workspace from the Settings page. The action requires a confirmation step and immediately revokes all access. The workspace owner cannot leave — they must delete the workspace or transfer ownership first.
+
+### Delete Workspace (Owner Only)
+Owners can permanently delete a workspace from Settings. The action requires typing the exact workspace name to confirm. Deletion cascades to all workspace data via Prisma's `onDelete: Cascade` relations.
+
+### Task Delete Permissions
+Task deletion is now permission-gated. Only the **task creator** or the **workspace owner** can delete a task. The backend enforces this check before executing the delete. The UI shows the delete button (in the task card hover menu and the edit modal) only to eligible users.
+
+---
+
+## 3. Who It's Built For
 
 ### Primary Users
 
 | Role | Description |
 |------|-------------|
-| **Employees** | Day-to-day task tracking, leave requests, team chat, document access |
+| **Employees / Members** | Day-to-day task tracking, leave requests, team chat, document access, private notes |
 | **Managers** | Leave approvals, task assignment, team oversight, announcements |
-| **Admins** | Full platform control — user management, all data access, system configuration |
+| **Admins** | Member management, workspace configuration |
+| **Owners** | Full platform control — invite management, workspace lifecycle |
 
 ### Ideal Organizations
-
 - **Startups (5–200 people)** — Replace 4–6 separate SaaS tools with one platform
-- **SMEs (Small & Medium Enterprises)** — Affordable alternative to enterprise suites
+- **SMEs** — Affordable alternative to enterprise suites
 - **Remote-first teams** — Async communication, document sharing, visibility across time zones
 - **Agencies & consultancies** — Project tracking, client-facing team directories
 - **Educational institutions** — Staff coordination, leave management, announcements
-- **NGOs & non-profits** — Low-cost internal operations hub
-
-### Pain Points Solved
-
-- Scattered tools → one unified hub
-- Leave approval via email chains → structured digital workflow
-- No visibility into team workload → real-time Kanban + analytics
-- Documents lost in email threads → versioned document hub
-- No single source of truth for team info → searchable team directory
 
 ---
 
-## 3. Core Modules & Features
+## 4. Core Modules & Features
 
-### 3.1 Dashboard
+### 4.1 Workspace Management
+- Create workspaces with auto-generated URL slugs
+- Workspace picker at `/workspaces` — lists all memberships
+- Join via `XXX-XXX` code or `/invite/[token]` URL
+- Workspace switcher in the sidebar
+- Settings page with RBAC-gated sections
+
+### 4.2 Dashboard
 - Personalized greeting with time-aware message
 - 4 KPI cards: Open Tasks, Pending Leaves, Team Members, Completion Rate
 - Animated count-up numbers on load
 - Task completion donut chart (Recharts)
 - Recent tasks feed
 - Pinned announcements
-- Pending leave requests (manager view)
-- Quick-add task floating button
+- Pending leave requests
 
-### 3.2 Task Management
+### 4.3 Task Management
 - **Kanban Board** — 4 columns: To Do → In Progress → In Review → Done
-- Drag-and-drop between columns (dnd-kit with spring physics)
-- **List View** — sortable, filterable table (TanStack Table)
-- Task cards: title, priority badge, assignee avatar, due date, tags
-- Create/edit modal: full fields, tag input, assignee select, date picker
-- Filter bar: by assignee, priority, status
-- Global search across task titles
-- Automatic notifications to assignees on task creation
+- Drag-and-drop between columns (dnd-kit)
+- **List View** — sortable, filterable table
+- Task cards with priority badge, assignee avatar, due date, tags
+- Create/edit modal with full fields
+- Delete button visible only to task creator or workspace owner
+- Hover menu on task cards with delete option
 
-### 3.3 Real-time Chat
-- Channel-based messaging (public channels)
-- Real-time message delivery via Supabase Realtime (WebSocket)
-- Message grouping by sender + time proximity (5-minute window)
-- File sharing via Supabase Storage
+### 4.4 Real-time Chat
+- Channel-based messaging (workspace-scoped channels)
+- Real-time message delivery via Supabase Realtime
+- Message grouping by sender + time proximity
 - Typing indicators via Supabase Presence
-- Unread count badges per channel (Zustand)
-- @mention support
-- Message edit with timestamp
+- Unread count badges per channel
 
-### 3.4 Leave Management
-- Employee: submit leave requests (6 types: Sick, Casual, Earned, Maternity, Paternity, Unpaid)
-- Date range picker, reason field, Zod validation
+### 4.5 Leave Management
+- Submit leave requests (6 types: Sick, Casual, Earned, Maternity, Paternity, Unpaid)
 - Manager/Admin: approve or reject with comments
 - Email notifications on approval/rejection (Resend)
-- Leave distribution pie chart (Recharts)
 - Leave history table with status badges
-- Automatic notifications to all managers on new request
 
-### 3.5 Document Hub
+### 4.6 Document Hub
 - Document grid with search and tag filtering
-- **Tiptap rich-text editor** — headings, bold, italic, lists, code blocks, blockquotes, horizontal rules
-- Auto-save every 30 seconds (debounced tRPC mutation)
-- Version counter (increments on every save)
+- **Tiptap rich-text editor** — headings, bold, italic, lists, code blocks
+- Auto-save every 30 seconds
+- Version counter
 - Public/private toggle per document
-- Tag management (add/remove inline)
-- File attachment support via Supabase Storage
-- Author attribution and relative timestamps
 
-### 3.6 Team Directory
-- Searchable grid of all active team members
+### 4.7 Team Directory
+- Searchable grid of all workspace members
 - Department filter tabs
-- Member cards: avatar, name, designation, department, role badge, online status
-- Click-to-open profile drawer with full details
-- Admin: activate/deactivate members
+- Member cards with avatar, name, designation, role badge
+- Click-to-open profile drawer
 
-### 3.7 Announcements
+### 4.8 Announcements
 - Pinned announcements highlighted at top
-- Priority badges: URGENT (red), HIGH (amber), MEDIUM (blue), LOW (grey)
-- Expiry date support (auto-hides expired announcements)
-- Manager/Admin: create with rich text, priority, pin toggle, expiry
-- Automatic notifications to all team members on publish
+- Priority badges: URGENT, HIGH, MEDIUM, LOW
+- Expiry date support
+- Manager/Admin: create with rich text, priority, pin toggle
 
-### 3.8 Analytics
+### 4.9 Analytics
 - Date range selector: 7d / 30d / 90d
 - KPI row: Total Tasks, Completion Rate, Active Members, Pending Leaves
-- Task trend line chart (created vs completed over time)
+- Task trend line chart
 - Tasks by priority stacked bar chart
 - Leave distribution by type pie chart
-- Team activity heatmap (GitHub-style, day × hour grid)
-- Export to CSV (client-side via PapaParse)
-- All charts animated on load (Recharts animation props)
+- Team activity heatmap
+- Export to CSV
 
-### 3.9 Profile
-- Avatar upload (Supabase Storage, 5MB limit, instant preview)
-- Bio field (300 chars with live counter)
-- Personal info: name, designation, department, phone
+### 4.10 Private Notes
+- Personal note-taking dashboard at `/notes`
+- Completely private — not visible to workspace members
+- Pin/unpin notes
+- Search across title and content
+- Tag support
+- Delete with confirmation
+
+### 4.11 Profile
+- Avatar upload (Supabase Storage)
+- Bio, designation, department, phone
 - Social links: LinkedIn, Twitter/X, GitHub, Website
-- Stats: tasks assigned, leave requests, documents created
-- Account info: email, role, member since date
-- Unsaved changes indicator
+- Account info: email, role, member since
 
-### 3.10 Notifications
-- Real-time notification delivery (Supabase Realtime)
-- Subtle audio chime on new notification (Web Audio API)
-- Slide-in notification panel from right
-- Mark single / mark all as read
-- Clear read notifications
-- Unread badge on topbar bell icon
+### 4.12 Workspace Settings (Owner)
+- **Join Code** — view, copy, regenerate, enable/disable
+- **Invite Links** — create with label/max-uses/expiry, copy, deactivate, delete
+- **Delete Workspace** — requires typing workspace name to confirm
+
+### 4.13 Workspace Settings (Members)
+- **Leave Workspace** — with confirmation step
 
 ---
 
-## 4. Tech Stack
+## 5. Tech Stack
 
 ### Frontend
 | Layer | Technology | Version |
@@ -185,129 +228,12 @@ WorkNest is a **unified internal productivity platform** that consolidates the t
 ### Infrastructure
 | Service | Purpose |
 |---------|---------|
-| Supabase | PostgreSQL database + Auth + Realtime + Storage |
+| Supabase | PostgreSQL + Auth + Realtime + Storage |
 | Upstash Redis | Caching + Rate limiting |
-| Resend | Transactional email |
+| Resend | Transactional email (invitations, leave approvals) |
 | Vercel | Hosting + Edge deployment |
 
----
-
-## 5. Libraries & Dependencies
-
-### Core Framework
-```
-next@16.2.4              — React framework with App Router, Server Components
-react@19.2.4             — UI library
-typescript@^5            — Type safety (strict mode, no implicit any)
-```
-
-### Styling & UI
-```
-tailwindcss@^4           — Utility-first CSS with @theme CSS variables
-tailwind-merge@^3        — Merge conflicting Tailwind classes safely
-clsx@^2                  — Conditional className utility
-class-variance-authority — Component variant system
-tailwindcss-animate      — CSS animation utilities
-framer-motion@^12        — Spring animations, page transitions, gestures
-lucide-react@^1          — 1000+ consistent SVG icons
-sonner@^2                — Toast notification system
-```
-
-### Radix UI Primitives (Accessible headless components)
-```
-@radix-ui/react-dialog          — Modal dialogs
-@radix-ui/react-dropdown-menu   — Dropdown menus
-@radix-ui/react-popover         — Floating popovers
-@radix-ui/react-tooltip         — Hover tooltips
-@radix-ui/react-tabs            — Tab navigation
-@radix-ui/react-select          — Select dropdowns
-@radix-ui/react-separator       — Visual dividers
-@radix-ui/react-avatar          — Avatar with fallback
-@radix-ui/react-scroll-area     — Custom scrollbars
-@radix-ui/react-label           — Accessible form labels
-@radix-ui/react-checkbox        — Accessible checkboxes
-@radix-ui/react-slot            — Polymorphic component slot
-cmdk@^1                         — Command palette (⌘K)
-```
-
-### Data & API
-```
-@trpc/server@^11         — Type-safe API router (server)
-@trpc/client@^11         — Type-safe API client
-@trpc/react-query@^11    — tRPC + React Query integration
-@tanstack/react-query@^5 — Server state, caching, background refetch
-@tanstack/react-table@^8 — Headless table with sort/filter/pagination
-superjson@^2             — Serialize Date, Map, Set over JSON
-```
-
-### Database & Auth
-```
-prisma@^5                — Schema-first ORM, migrations, Prisma Studio
-@prisma/client@^5        — Generated type-safe database client
-@supabase/supabase-js@^2 — Supabase client (auth, storage, realtime)
-@supabase/ssr@^0.10      — Supabase SSR helpers for Next.js App Router
-```
-
-### Forms & Validation
-```
-react-hook-form@^7       — Performant forms with minimal re-renders
-@hookform/resolvers@^5   — Connect Zod schemas to React Hook Form
-zod@^4                   — Schema validation (forms, API inputs)
-```
-
-### Rich Text Editor
-```
-@tiptap/react@^3         — Headless rich text editor framework
-@tiptap/starter-kit@^3   — Bold, italic, headings, lists, code, blockquote
-@tiptap/extension-image  — Image embedding
-@tiptap/extension-link   — Hyperlink support
-@tiptap/extension-placeholder — Placeholder text
-```
-
-### Charts & Data Visualization
-```
-recharts@^3              — Composable charts (Line, Bar, Pie, Area)
-react-countup@^6         — Animated number count-up
-```
-
-### Drag & Drop
-```
-@dnd-kit/core@^6         — Drag-and-drop primitives
-@dnd-kit/sortable@^10    — Sortable lists and grids
-@dnd-kit/utilities@^3    — CSS transform utilities
-```
-
-### File Handling
-```
-react-dropzone@^15       — File upload with drag-and-drop
-papaparse@^5             — CSV parsing and export
-```
-
-### Infrastructure SDKs
-```
-@upstash/redis@^1        — Serverless Redis client (REST API)
-@upstash/ratelimit@^2    — Sliding window rate limiting
-resend@^6                — Email delivery SDK
-```
-
-### Utilities
-```
-date-fns@^4              — Date formatting, arithmetic, intervals
-dotenv@^17               — Environment variable loading
-```
-
-### Development & Testing
-```
-jest@^30                 — Unit test runner
-@testing-library/react   — React component testing utilities
-@testing-library/jest-dom — Custom DOM matchers
-jest-environment-jsdom   — Browser-like test environment
-@playwright/test@^1      — End-to-end browser testing
-tsx@^4                   — TypeScript execution (for seed scripts)
-ts-jest@^29              — TypeScript transformer for Jest
-eslint@^9                — Code linting
-eslint-config-next       — Next.js ESLint rules
-```
+> **Note on backend:** WorkNest uses **Next.js API routes + tRPC** as its backend layer — not Flask. All server logic lives in `src/server/routers/` and is served via `/api/trpc`. There is no separate backend server.
 
 ---
 
@@ -318,435 +244,360 @@ eslint-config-next       — Next.js ESLint rules
 │                        CLIENT BROWSER                           │
 │                                                                 │
 │  React 19 + Next.js App Router                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
-│  │ Zustand  │  │  React   │  │  Framer  │  │  Tiptap /    │   │
-│  │  Stores  │  │  Query   │  │  Motion  │  │  Recharts /  │   │
-│  │ (UI/Chat │  │  Cache   │  │  Anim.   │  │  dnd-kit     │   │
-│  │  /Notif) │  │          │  │          │  │              │   │
-│  └────┬─────┘  └────┬─────┘  └──────────┘  └──────────────┘   │
-│       │              │                                          │
-│       └──────────────┼──────────────────────────────────────   │
-│                      │ tRPC HTTP Batch                          │
-└──────────────────────┼──────────────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────────────┐
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
+│  │ Zustand      │  │ React Query  │  │ Framer Motion /    │    │
+│  │ workspaceStore│  │ tRPC cache  │  │ Recharts / dnd-kit │    │
+│  └──────┬───────┘  └──────┬───────┘  └────────────────────┘    │
+│         │                 │                                     │
+│         └─────────────────┼─────────────────────────────────   │
+│                           │ tRPC HTTP Batch                     │
+│                           │ + x-workspace-id header             │
+└───────────────────────────┼─────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
 │                    NEXT.JS SERVER (Vercel)                       │
 │                                                                 │
-│  App Router (Server Components + Server Actions)                │
+│  tRPC Router  /api/trpc/[trpc]                                  │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    tRPC Router                          │   │
-│  │  /api/trpc/[trpc]                                       │   │
-│  │                                                         │   │
-│  │  tasks | chat | leaves | documents | users |            │   │
-│  │  announcements | notifications | analytics              │   │
+│  │  workspaces · invitations · notes · tasks · chat        │   │
+│  │  leaves · documents · announcements · notifications     │   │
+│  │  users · analytics                                      │   │
 │  └──────────────────────┬──────────────────────────────────┘   │
 │                         │                                       │
-│  ┌──────────────────────▼──────────────────────────────────┐   │
-│  │                  Prisma ORM v5                          │   │
-│  │  Type-safe queries → PostgreSQL                         │   │
-│  └──────────────────────┬──────────────────────────────────┘   │
+│  Context: { user, dbUser, dbMembership, workspaceId, prisma }  │
+│  Workspace resolved from x-workspace-id request header         │
 │                         │                                       │
-│  ┌──────────────────────▼──────────────────────────────────┐   │
-│  │              Supabase Auth (SSR)                        │   │
-│  │  Session validation on every tRPC request               │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  proxy.ts (Next.js Proxy/Middleware)                            │
-│  → Refreshes Supabase session cookies                           │
-│  → Redirects unauthenticated → /login                          │
-│  → Redirects authenticated from /login → /dashboard            │
+│  Procedure tiers:                                               │
+│  publicProcedure → protectedProcedure → workspaceProcedure     │
+│  → workspaceManagerProcedure → workspaceAdminProcedure         │
+│  → workspaceOwnerProcedure                                      │
 └──────────────────────┬──────────────────────────────────────────┘
                        │
         ┌──────────────┼──────────────────────────────┐
         │              │                              │
 ┌───────▼──────┐ ┌─────▼──────────┐ ┌───────────────▼──────┐
 │  Supabase    │ │  Upstash Redis │ │      Resend          │
-│              │ │                │ │                      │
-│ • PostgreSQL │ │ • Query cache  │ │ • Welcome emails     │
-│ • Auth       │ │ • Rate limits  │ │ • Leave approval     │
-│ • Realtime   │ │   (5 req/min)  │ │   notifications      │
-│ • Storage    │ └────────────────┘ └──────────────────────┘
-│              │
-│ WebSocket ───┼──→ Browser (Realtime)
-│  • Messages  │    • New messages append instantly
-│  • Notifs    │    • Notification badge updates live
+│  PostgreSQL  │ │  Rate limiting │ │  Invitation emails   │
+│  Auth        │ │  Query cache   │ │  Leave approvals     │
+│  Realtime    │ └────────────────┘ └──────────────────────┘
+│  Storage     │
 └──────────────┘
 ```
 
-### Data Flow — Real-time Chat
-```
-User types message
-  → React Hook Form captures input
-  → tRPC mutation: chat.messages.send
-  → Prisma inserts to PostgreSQL
-  → Supabase Realtime broadcasts INSERT event
-  → All subscribed clients receive via WebSocket
-  → React Query cache updated
-  → MessageList re-renders with new message
-```
-
-### Data Flow — Authentication
-```
-User clicks "Continue with Google"
-  → Supabase OAuth redirect to Google
-  → Google authenticates, redirects to /auth/callback
-  → Supabase exchanges code for session
-  → /auth/callback route creates DB user if new
-  → Session cookie set
-  → proxy.ts validates session on every request
-  → tRPC context attaches user to every procedure
-```
-
-### Data Flow — Leave Approval
-```
-Employee submits leave request
-  → tRPC: leaves.request mutation
-  → Prisma creates LeaveRequest record
-  → Notifications created for all managers
-  → Supabase Realtime pushes notification to managers
-  
-Manager clicks Approve
-  → tRPC: leaves.approve mutation (managerProcedure guard)
-  → Prisma updates status to APPROVED
-  → Notification created for employee
-  → Resend sends approval email to employee
-```
+### Workspace Isolation Pattern
+Every tRPC request that requires workspace context sends an `x-workspace-id` header (set automatically by the tRPC client from the Zustand `workspaceStore`). The server context resolves the workspace and verifies membership before the procedure runs. All database queries include `WHERE workspaceId = ctx.workspaceId`.
 
 ---
 
 ## 7. Database Schema
 
-### Models Overview
+### Core Models
 
 ```
-User ──────────────────────────────────────────────────────────
-  id, supabaseId, email, name, avatar, role (ADMIN|MANAGER|EMPLOYEE)
-  department, designation, phone, bio
-  linkedinUrl, twitterUrl, githubUrl, websiteUrl
-  joinedAt, isActive, createdAt, updatedAt
+User
+  id, supabaseId, email, name, avatar, role
+  department, designation, phone, bio, social links
+  joinedAt, isActive
 
-Task ──────────────────────────────────────────────────────────
-  id, title, description
-  status (TODO|IN_PROGRESS|IN_REVIEW|DONE)
-  priority (LOW|MEDIUM|HIGH|URGENT)
-  dueDate, order, tags[], attachments[]
+Workspace
+  id, name, slug (unique), logoUrl, ownerId
+  joinCode (unique, XXX-XXX format), joinCodeEnabled
+
+Membership
+  id, userId → User, workspaceId → Workspace
+  role (OWNER | ADMIN | MANAGER | MEMBER)
+  @@unique([userId, workspaceId])
+
+Invitation  (email-specific, single-use)
+  id, email, workspaceId, invitedById, token (unique)
+  status (PENDING | ACCEPTED | EXPIRED | REVOKED)
+  expiresAt
+
+WorkspaceInviteLink  (reusable, open)
+  id, workspaceId, createdById, token (unique)
+  label, maxUses, useCount, expiresAt, isActive
+
+Note  (private per-user, no workspace scope)
+  id, userId, title, content, color, pinned, tags
+
+Task
+  id, workspaceId, title, description
+  status (TODO | IN_PROGRESS | IN_REVIEW | DONE)
+  priority (LOW | MEDIUM | HIGH | URGENT)
   assigneeId → User, creatorId → User
+  tags, attachments, order
 
-LeaveRequest ──────────────────────────────────────────────────
-  id, userId → User
-  type (SICK|CASUAL|EARNED|MATERNITY|PATERNITY|UNPAID)
+LeaveRequest
+  id, workspaceId, userId
+  type (SICK | CASUAL | EARNED | MATERNITY | PATERNITY | UNPAID)
   startDate, endDate, reason
-  status (PENDING|APPROVED|REJECTED|CANCELLED)
+  status (PENDING | APPROVED | REJECTED | CANCELLED)
   approvedBy, comments
 
-Message ───────────────────────────────────────────────────────
+Message
   id, channelId → Channel, senderId → User
-  content, type (TEXT|IMAGE|FILE), fileUrl
-  createdAt, editedAt
+  content, type (TEXT | IMAGE | FILE), fileUrl
 
-Channel ───────────────────────────────────────────────────────
-  id, name (unique), description, isPrivate
+Channel
+  id, workspaceId, name, description, isPrivate
+  @@unique([workspaceId, name])
 
-Document ──────────────────────────────────────────────────────
-  id, title, content (Text), authorId → User
-  isPublic, tags[], fileUrl, version
+Document
+  id, workspaceId, title, content, authorId
+  isPublic, tags, fileUrl, version
 
-Announcement ──────────────────────────────────────────────────
-  id, title, body (Text), authorId
+Announcement
+  id, workspaceId, title, body, authorId
   priority, pinned, expiresAt
 
-Notification ──────────────────────────────────────────────────
-  id, userId → User, title, body, type, read, link
+Notification
+  id, workspaceId, userId, title, body, type, read, link
 ```
-
-### Role-Based Access Control
-
-| Action | EMPLOYEE | MANAGER | ADMIN |
-|--------|----------|---------|-------|
-| View own tasks | ✅ | ✅ | ✅ |
-| Create tasks | ✅ | ✅ | ✅ |
-| Assign tasks to others | ✅ | ✅ | ✅ |
-| Request leave | ✅ | ✅ | ✅ |
-| Approve/reject leave | ❌ | ✅ | ✅ |
-| Create announcements | ❌ | ✅ | ✅ |
-| View all leave requests | ❌ | ✅ | ✅ |
-| Deactivate users | ❌ | ❌ | ✅ |
-| Delete announcements | ❌ | ✅ | ✅ |
 
 ---
 
-## 8. External Service Integrations
+## 8. Multi-Tenant System
+
+### Data Isolation
+Every workspace-scoped model (`Task`, `Channel`, `Message`, `LeaveRequest`, `Document`, `Announcement`, `Notification`) has a `workspaceId` foreign key. All queries filter by `workspaceId` — a user in Workspace A can never see data from Workspace B.
+
+### Workspace Resolution
+1. User selects a workspace → Zustand `workspaceStore` stores `{ id, slug, name, role }`
+2. tRPC client sends `x-workspace-id: <workspaceId>` header on every request
+3. Server context reads the header, verifies the user is a member, and attaches `workspaceId` + `dbMembership` to the context
+4. All workspace-scoped procedures receive a guaranteed `ctx.workspaceId`
+
+### WorkspaceBootstrap Component
+A client component rendered inside the workspace layout (`/w/[slug]/layout.tsx`) that hydrates the Zustand store from server-resolved data on every page load — ensuring hard refreshes and direct URL navigation always have the correct workspace in state.
+
+---
+
+## 9. Role-Based Access Control
+
+### Procedure Tiers (server-enforced)
+
+| Procedure | Requirement |
+|-----------|-------------|
+| `publicProcedure` | No auth required |
+| `protectedProcedure` | Valid Supabase session |
+| `workspaceProcedure` | Session + workspace membership |
+| `workspaceManagerProcedure` | Membership with role MANAGER/ADMIN/OWNER |
+| `workspaceAdminProcedure` | Membership with role ADMIN/OWNER |
+| `workspaceOwnerProcedure` | Membership with role OWNER only |
+
+### Permission Matrix
+
+| Action | Member | Manager | Admin | Owner |
+|--------|--------|---------|-------|-------|
+| View workspace data | ✅ | ✅ | ✅ | ✅ |
+| Create/edit tasks | ✅ | ✅ | ✅ | ✅ |
+| Delete own tasks | ✅ | ✅ | ✅ | ✅ |
+| Delete any task | ❌ | ❌ | ❌ | ✅ |
+| Request leave | ✅ | ✅ | ✅ | ✅ |
+| Approve/reject leave | ❌ | ✅ | ✅ | ✅ |
+| Create announcements | ❌ | ✅ | ✅ | ✅ |
+| Manage member roles | ❌ | ❌ | ✅ | ✅ |
+| View join code | ❌ | ❌ | ❌ | ✅ |
+| Regenerate join code | ❌ | ❌ | ❌ | ✅ |
+| Create invite links | ❌ | ❌ | ❌ | ✅ |
+| Delete workspace | ❌ | ❌ | ❌ | ✅ |
+| Leave workspace | ✅ | ✅ | ✅ | ❌ |
+
+---
+
+## 10. Invitation System
+
+### Method 1 — Workspace Join Code
+- Format: `XXX-XXX` (6 uppercase alphanumeric chars, no ambiguous characters)
+- Stored as `joinCode` on the `Workspace` model (`@unique`)
+- Owner can regenerate (old code immediately invalidated) or disable
+- User enters code on `/workspaces` → "Join a Workspace" tab
+- Backend normalises input (strips spaces/dashes, re-inserts dash) before lookup
+
+### Method 2 — Reusable Invite Link
+- Token stored in `WorkspaceInviteLink` model
+- URL format: `https://[app]/invite/[token]`
+- Any authenticated user who visits the link can join
+- Use count tracked atomically; auto-invalidates at `maxUses`
+- Owner can deactivate or delete links from Settings
+
+### Method 3 — Email Invitation (existing)
+- Tied to a specific email address
+- Single-use token in `Invitation` model
+- 7-day expiry
+- Sent via Resend with branded HTML template
+- Validates that the accepting user's email matches the invitation
+
+---
+
+## 11. Private Notes
+
+The `Note` model is scoped exclusively to `userId` — there is no `workspaceId`. This means:
+- Notes are accessible from any workspace context (sidebar link `/notes`)
+- Notes are never visible to other workspace members
+- Notes survive workspace deletion
+- The `notes` tRPC router uses `protectedProcedure` (not `workspaceProcedure`)
+
+Features: create, update, delete, pin/unpin, search by title/content, tag filtering.
+
+---
+
+## 12. External Service Integrations
 
 ### Supabase
-- **PostgreSQL** — Primary relational database (hosted, managed)
+- **PostgreSQL** — Primary relational database
 - **Auth** — Email/password + Google OAuth, JWT session management
 - **Realtime** — WebSocket subscriptions on `Message` and `Notification` tables
 - **Storage** — File uploads (avatars, document attachments, chat files)
-- **SSR Helpers** — Cookie-based session management for Next.js App Router
 
 ### Upstash Redis
-- **Caching** — Analytics query results cached with 5-minute TTL
-- **Rate Limiting** — Sliding window: 5 requests/minute per IP on auth endpoints
-- **Serverless-friendly** — REST API, no persistent connection needed
+- **Rate Limiting** — Sliding window on auth endpoints
+- **Caching** — Analytics query results (5-minute TTL)
 
 ### Resend
-- **Welcome Email** — Sent on new user registration with branded HTML template
-- **Leave Approval Email** — Sent to employee when leave is approved or rejected
-- **Branded templates** — Custom HTML with WorkNest color theme
+- **Invitation Email** — Sent when owner invites via email with branded template
+- **Leave Approval Email** — Sent to employee on approve/reject
+- **Welcome Email** — Sent on new user registration
 
 ### Vercel
 - **Hosting** — Serverless Next.js deployment
-- **Edge Network** — Global CDN for static assets
-- **Environment Variables** — Secure secrets management
-- **CI/CD** — Auto-deploy on git push via GitHub integration
-
-### Google OAuth (via Supabase)
-- Single Sign-On with Google accounts
-- Automatic profile picture import
-- No password management needed for Google users
+- **CI/CD** — Auto-deploy on git push
+- `prisma generate` runs before `next build` to ensure the Prisma client is always up to date
 
 ---
 
-## 9. Security Model
+## 13. Security Model
 
 ### Authentication
 - All sessions managed by Supabase Auth (JWT-based)
-- Session refreshed on every request via `proxy.ts`
+- Session refreshed on every request via `proxy.ts` middleware
 - `getUser()` called server-side — never trusts client-provided user data
-- Google OAuth uses PKCE flow (no client secret exposed)
 
 ### Authorization
 - Every tRPC procedure validates session in context
-- Role checks enforced server-side (`protectedProcedure`, `managerProcedure`, `adminProcedure`)
-- Document access: private docs only accessible by author
-- Leave approval: only MANAGER or ADMIN roles can approve/reject
+- Workspace membership verified on every workspace-scoped request
+- Role checks enforced server-side via middleware tiers
+- No client-side role checks are trusted — all enforced at the API layer
 
-### Rate Limiting
-- Auth endpoints: 5 requests/minute per IP (Upstash Ratelimit)
-- Prevents brute-force attacks on login/register
+### Database Connection
+- `DATABASE_URL` uses Transaction pooler (port 6543) with `pgbouncer=true&connection_limit=1`
+- Prevents connection exhaustion on Vercel serverless functions
+- `DIRECT_URL` uses Session mode (port 5432) for migrations only
 
 ### Data Validation
 - All API inputs validated with Zod schemas before database operations
 - No raw SQL — all queries through Prisma (parameterized, injection-safe)
-- File uploads: type and size validated before Supabase Storage upload
-
-### Environment Security
-- All secrets in `.env.local` (never committed)
-- Service role key only used server-side
-- Publishable/anon key safe for client-side use
 
 ---
 
-## 10. Design System
+## 14. Responsive Design
+
+WorkNest is built mobile-first using Tailwind CSS v4 utility classes.
+
+### Breakpoints
+| Breakpoint | Width | Layout |
+|------------|-------|--------|
+| Mobile | < 640px | Single column, drawer sidebar, stacked action rows |
+| Tablet | 640–1024px | 2-column grids, collapsed sidebar |
+| Desktop | > 1024px | Full layout, expanded sidebar, multi-column grids |
+
+### Key Responsive Patterns
+- **Sidebar** — Fixed on desktop, slide-in drawer on mobile (controlled by `useUIStore`)
+- **AppShell** — `lg:pl-60` / `lg:pl-16` padding adjusts for sidebar state; `p-4 sm:p-6 lg:p-8` content padding
+- **KPI Cards** — `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`
+- **Settings sections** — `flex-col sm:flex-row` for action rows that would overflow on mobile
+- **Notes header** — `flex-col sm:flex-row` with `self-start` button alignment on mobile
+- **Invite link rows** — `flex-wrap` meta badges, `truncate` on URL preview
+
+---
+
+## 15. Design System
 
 ### Color Palette
 | Token | Hex | Usage |
 |-------|-----|-------|
-| Background | `#0A1828` | Page background (dark classic blue) |
+| Background | `#0A1828` | Page background |
 | Surface | `#0D1F35` | Card backgrounds |
 | Surface-2 | `#112540` | Elevated elements |
-| Surface-3 | `#152B4A` | Highest elevation |
 | Border | `#1E3A5F` | All borders |
 | Primary | `#178582` | Turquoise — buttons, links, active states |
 | Secondary | `#BFA181` | Gold — highlights, badges |
-| Accent | `#D4B896` | Light gold — secondary highlights |
 | Foreground | `#E8F0F8` | Primary text |
 | Muted | `#7A9BBF` | Secondary text, placeholders |
 
 ### Typography
-| Font | Role | Weights |
-|------|------|---------|
-| **Syne** | Display / Headings | 400, 500, 600, 700, 800 |
-| **DM Sans** | Body / UI | 300, 400, 500, 600, 700 |
-
-### Animation System (Framer Motion)
-| Variant | Effect | Use Case |
-|---------|--------|----------|
-| `fadeUp` | y: 24→0, opacity: 0→1 | Section reveals, cards |
-| `staggerContainer` | 70ms child stagger | Card grids, lists |
-| `scaleIn` | scale: 0.95→1 | Modals, auth forms |
-| `slideRight` | x: -20→0 | Chat messages, sidebar items |
-| `pageTransition` | opacity + y slide | Route changes |
-| `drawerVariants` | x: -100%→0 | Mobile sidebar |
-| `notificationPanel` | x: 100%→0 | Notification panel |
-
-### Responsive Breakpoints
-| Breakpoint | Width | Layout |
-|------------|-------|--------|
-| Mobile | < 768px | Single column, drawer sidebar, horizontal scroll Kanban |
-| Tablet | 768–1024px | 2-column grids, collapsed sidebar |
-| Desktop | > 1024px | Full layout, expanded sidebar, multi-column grids |
+| Font | Role |
+|------|------|
+| **Syne** | Display / Headings (`font-syne`) |
+| **DM Sans** | Body / UI (`font-sans`) |
 
 ---
 
-## 11. Who Benefits & How
+## 16. Environment Variables
 
-### Employees
-- **Save 30–60 min/day** — No context switching between tools
-- **Never miss a task** — Assigned tasks trigger instant notifications
-- **Transparent leave process** — Submit and track requests digitally
-- **Stay informed** — Announcements and notifications in one place
-- **Build a professional profile** — Bio, social links, visible to the team
-
-### Managers
-- **Real-time team visibility** — See all tasks, statuses, and workloads
-- **Streamlined approvals** — Leave requests with one-click approve/reject
-- **Broadcast updates** — Announcements reach the whole team instantly
-- **Data-driven decisions** — Analytics dashboard with completion rates and trends
-
-### HR Departments
-- **Digital leave records** — All requests, approvals, and history stored
-- **Leave type tracking** — Sick, casual, earned, maternity, paternity, unpaid
-- **Compliance-ready** — Timestamped records with approver attribution
-
-### IT / Operations
-- **Single platform to maintain** — One deployment, one database
-- **Role-based access** — No manual permission management
-- **Audit trail** — All actions timestamped and attributed
-
-### Leadership / C-Suite
-- **Analytics at a glance** — Task completion rates, team activity heatmaps
-- **Productivity trends** — 7d / 30d / 90d views
-- **Team health indicators** — Leave patterns, pending requests
-
----
-
-## 12. Future Scope
-
-### Near-term (3–6 months)
-
-#### 1. Video Conferencing Integration
-- Embed Jitsi Meet or Daily.co for in-app video calls
-- Schedule meetings from the calendar
-- Meeting notes auto-saved to Documents
-
-#### 2. Time Tracking
-- Log hours against tasks
-- Weekly timesheets with manager approval
-- Integration with payroll exports (CSV)
-
-#### 3. Project Management Layer
-- Group tasks into Projects with milestones
-- Gantt chart view (timeline)
-- Project-level analytics and burn-down charts
-
-#### 4. Mobile App (React Native)
-- Shared business logic with the web app
-- Push notifications (FCM)
-- Offline-first with sync on reconnect
-
-#### 5. Advanced Search
-- Full-text search across tasks, documents, messages, and announcements
-- Powered by PostgreSQL full-text search or Algolia
-
----
-
-### Medium-term (6–12 months)
-
-#### 6. AI Assistant Integration
-- AI-powered task suggestions based on workload
-- Auto-summarize long document threads
-- Smart leave conflict detection
-- Natural language task creation ("Create a high-priority task for Sarah due Friday")
-
-#### 7. Integrations Marketplace
-- Slack import/export
-- GitHub — link commits to tasks
-- Google Calendar — sync leave dates
-- Zapier / Make webhooks for custom automations
-
-#### 8. Performance Reviews
-- 360-degree feedback cycles
-- Goal setting (OKRs) linked to tasks
-- Review history and progression tracking
-
-#### 9. Payroll & HR Module
-- Salary slips generation
-- Attendance tracking (check-in/check-out)
-- Holiday calendar management
-- Compliance reports
-
-#### 10. Multi-tenant / White-label
-- Multiple organizations on one deployment
-- Custom branding per organization (logo, colors)
-- Subdomain routing (`company.worknest.app`)
-
----
-
-### Long-term (12+ months)
-
-#### 11. Workflow Automation Engine
-- Visual workflow builder (no-code)
-- Trigger: "When leave is approved → notify team → block calendar"
-- Custom approval chains for different leave types
-
-#### 12. Advanced Analytics & BI
-- Custom report builder
-- Export to PDF / Excel
-- Scheduled email reports to leadership
-- Predictive analytics (burnout risk, attrition signals)
-
-#### 13. Compliance & Audit Module
-- SOC 2 compliance logging
-- GDPR data export / right to erasure
-- Immutable audit trail for all sensitive actions
-
-#### 14. Marketplace / Plugin System
-- Third-party developers can build plugins
-- Plugin store with install/uninstall
-- Sandboxed execution environment
-
-#### 15. Enterprise Features
-- SSO via SAML 2.0 / LDAP / Active Directory
-- IP allowlisting
-- Data residency options (EU, US, APAC)
-- SLA-backed uptime guarantees
-- Dedicated support channels
-
----
-
-## Quick Reference
-
-### Environment Variables Required
 ```bash
-NEXT_PUBLIC_SUPABASE_URL          # Supabase project URL
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY  # Supabase publishable key
-NEXT_PUBLIC_SUPABASE_ANON_KEY     # Supabase anon key (fallback)
-SUPABASE_SERVICE_ROLE_KEY         # Server-only service role key
-DATABASE_URL                      # PostgreSQL connection string
-DIRECT_URL                        # Direct PostgreSQL (for migrations)
-UPSTASH_REDIS_REST_URL            # Upstash Redis REST endpoint
-UPSTASH_REDIS_REST_TOKEN          # Upstash Redis auth token
-RESEND_API_KEY                    # Resend email API key
-RESEND_FROM_EMAIL                 # Sender email address
-NEXT_PUBLIC_APP_URL               # App base URL
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Database — use Transaction pooler for runtime, Direct for migrations
+DATABASE_URL="postgresql://...?pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://..."
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Upstash Redis
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+
+# Resend
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-### NPM Scripts
+---
+
+## 17. NPM Scripts
+
 ```bash
 npm run dev          # Start development server (localhost:3000)
-npm run build        # Production build
+npm run build        # prisma generate + next build
 npm run start        # Start production server
 npm run lint         # ESLint check
 npm run type-check   # TypeScript check (no emit)
 npm run db:generate  # Regenerate Prisma client
 npm run db:push      # Push schema to database
 npm run db:migrate   # Run migrations
-npm run db:seed      # Seed demo data
+npm run db:seed      # Seed admin user + default workspace
 npm run db:studio    # Open Prisma Studio (DB GUI)
 npm run test         # Run unit tests
 npm run test:e2e     # Run Playwright e2e tests
 ```
 
-### Demo Accounts (after seeding)
-```
-Admin:    admin@worknest.app
-Manager:  manager@worknest.app
-Employee: sarah@worknest.app
-Employee: james@worknest.app
-Employee: priya@worknest.app
-```
+---
+
+## 18. Future Scope
+
+### Near-term
+- **Video Conferencing** — Embed Jitsi Meet for in-app video calls
+- **Time Tracking** — Log hours against tasks, weekly timesheets
+- **Mobile App** — React Native with shared business logic
+- **Advanced Search** — Full-text search across tasks, documents, messages
+
+### Medium-term
+- **AI Assistant** — Task suggestions, document summarization, smart leave conflict detection
+- **Integrations** — GitHub (link commits to tasks), Google Calendar (sync leave dates)
+- **Performance Reviews** — 360-degree feedback, OKR tracking
+- **Workspace Templates** — Pre-configured channels, task boards, and roles
+
+### Long-term
+- **Multi-tenant White-label** — Custom branding per workspace
+- **Workflow Automation** — Visual no-code workflow builder
+- **Enterprise SSO** — SAML 2.0 / LDAP / Active Directory
+- **Compliance Module** — SOC 2 logging, GDPR data export, audit trail
 
 ---
 
-*WorkNest v0.1.0 — Built with Next.js 16, Supabase, tRPC, Prisma, and Tailwind CSS v4*
+*WorkNest v0.2.0 — Built with Next.js 16, Supabase, tRPC, Prisma, and Tailwind CSS v4*

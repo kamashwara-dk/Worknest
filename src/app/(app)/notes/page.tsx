@@ -43,20 +43,20 @@ export default function NotesPage() {
   const unpinned = notes?.filter((n) => !n.pinned) ?? [];
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Lock className="w-4 h-4 text-[#178582]" />
             <span className="text-xs text-[#7A9BBF] font-medium uppercase tracking-wider">Private</span>
           </div>
-          <h1 className="text-2xl font-bold text-[#E8F0F8] font-syne">My Notes</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#E8F0F8] font-syne">My Notes</h1>
           <p className="text-[#7A9BBF] text-sm mt-1">Only visible to you</p>
         </div>
         <button
           onClick={() => setCreating(true)}
-          className="flex items-center gap-2 bg-[#178582] hover:bg-[#178582]/90 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          className="self-start sm:self-auto flex items-center gap-2 bg-[#178582] hover:bg-[#178582]/90 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
         >
           <Plus className="w-4 h-4" />
           New Note
