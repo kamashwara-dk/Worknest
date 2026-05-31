@@ -6,6 +6,7 @@ import {
   workspaceProcedure,
   workspaceManagerProcedure,
   workspaceAdminProcedure,
+  workspaceOwnerProcedure,
 } from '../trpc';
 import { generateJoinCode, normaliseJoinCode } from '@/lib/joinCode';
 
@@ -120,10 +121,7 @@ export const workspacesRouter = createTRPCRouter({
     }),
 
   // ── Delete workspace (owner only) ────────────────────────────────────────
-  delete: workspaceProcedure.mutation(async ({ ctx }) => {
-    if (ctx.dbMembership.role !== 'OWNER') {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the owner can delete a workspace' });
-    }
+  delete: workspaceOwnerProcedure.mutation(async ({ ctx }) => {
     await ctx.prisma.workspace.delete({ where: { id: ctx.workspaceId } });
     return { success: true };
   }),
@@ -197,10 +195,9 @@ export const workspacesRouter = createTRPCRouter({
     }),
   }),
 
-  // ── Join code management ─────────────────────────────────────────────────
+  // ── Join code management (OWNER only) ───────────────────────────────────
 
-  // Get the current workspace's join code (all members can see it to share)
-  getJoinCode: workspaceProcedure.query(async ({ ctx }) => {
+  getJoinCode: workspaceOwnerProcedure.query(async ({ ctx }) => {
     const ws = await ctx.prisma.workspace.findUnique({
       where: { id: ctx.workspaceId },
       select: { joinCode: true, joinCodeEnabled: true },
@@ -209,9 +206,7 @@ export const workspacesRouter = createTRPCRouter({
     return ws;
   }),
 
-  // Regenerate the join code (admin+)
-  regenerateJoinCode: workspaceAdminProcedure.mutation(async ({ ctx }) => {
-    // Keep regenerating until we get a unique code
+  regenerateJoinCode: workspaceOwnerProcedure.mutation(async ({ ctx }) => {
     let joinCode = generateJoinCode();
     while (await ctx.prisma.workspace.findUnique({ where: { joinCode } })) {
       joinCode = generateJoinCode();
@@ -223,8 +218,7 @@ export const workspacesRouter = createTRPCRouter({
     });
   }),
 
-  // Enable or disable the join code (admin+)
-  toggleJoinCode: workspaceAdminProcedure.mutation(async ({ ctx }) => {
+  toggleJoinCode: workspaceOwnerProcedure.mutation(async ({ ctx }) => {
     const ws = await ctx.prisma.workspace.findUnique({
       where: { id: ctx.workspaceId },
       select: { joinCodeEnabled: true },
@@ -270,11 +264,10 @@ export const workspacesRouter = createTRPCRouter({
       return { membership, workspace };
     }),
 
-  // ── Invite links ─────────────────────────────────────────────────────────
+  // ── Invite links (OWNER only) ────────────────────────────────────────────
 
   inviteLinks: createTRPCRouter({
-    // List all invite links for the active workspace
-    list: workspaceManagerProcedure.query(async ({ ctx }) => {
+    list: workspaceOwnerProcedure.query(async ({ ctx }) => {
       return ctx.prisma.workspaceInviteLink.findMany({
         where: { workspaceId: ctx.workspaceId },
         include: { createdBy: { select: { name: true, avatar: true } } },
@@ -282,8 +275,7 @@ export const workspacesRouter = createTRPCRouter({
       });
     }),
 
-    // Create a new invite link
-    create: workspaceManagerProcedure
+    create: workspaceOwnerProcedure
       .input(
         z.object({
           label: z.string().max(80).optional(),
@@ -295,7 +287,6 @@ export const workspacesRouter = createTRPCRouter({
         const expiresAt = input.expiresInDays
           ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
           : null;
-
         return ctx.prisma.workspaceInviteLink.create({
           data: {
             workspaceId: ctx.workspaceId,
@@ -307,28 +298,22 @@ export const workspacesRouter = createTRPCRouter({
         });
       }),
 
-    // Deactivate an invite link
-    deactivate: workspaceManagerProcedure
+    deactivate: workspaceOwnerProcedure
       .input(z.object({ id: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const link = await ctx.prisma.workspaceInviteLink.findUnique({ where: { id: input.id } });
-        if (!link || link.workspaceId !== ctx.workspaceId) {
-          throw new TRPCError({ code: 'NOT_FOUND' });
-        }
+        if (!link || link.workspaceId !== ctx.workspaceId) throw new TRPCError({ code: 'NOT_FOUND' });
         return ctx.prisma.workspaceInviteLink.update({
           where: { id: input.id },
           data: { isActive: false },
         });
       }),
 
-    // Delete an invite link
-    delete: workspaceAdminProcedure
+    delete: workspaceOwnerProcedure
       .input(z.object({ id: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const link = await ctx.prisma.workspaceInviteLink.findUnique({ where: { id: input.id } });
-        if (!link || link.workspaceId !== ctx.workspaceId) {
-          throw new TRPCError({ code: 'NOT_FOUND' });
-        }
+        if (!link || link.workspaceId !== ctx.workspaceId) throw new TRPCError({ code: 'NOT_FOUND' });
         await ctx.prisma.workspaceInviteLink.delete({ where: { id: input.id } });
         return { success: true };
       }),

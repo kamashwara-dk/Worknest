@@ -110,6 +110,24 @@ const enforceWorkspaceAdmin = t.middleware(({ ctx, next }) => {
   });
 });
 
+const enforceWorkspaceOwner = t.middleware(({ ctx, next }) => {
+  if (!ctx.user || !ctx.dbUser || !ctx.workspaceId || !ctx.dbMembership) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  if (ctx.dbMembership.role !== 'OWNER') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Only the workspace owner can do this' });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+      dbUser: ctx.dbUser,
+      workspaceId: ctx.workspaceId,
+      dbMembership: ctx.dbMembership,
+    },
+  });
+});
+
 // ─── Legacy global-role middleware (kept for backward compat) ─────────────────
 
 const enforceUserIsManager = t.middleware(({ ctx, next }) => {
@@ -138,3 +156,4 @@ export const adminProcedure     = t.procedure.use(enforceUserIsAuthed).use(enfor
 export const workspaceProcedure        = t.procedure.use(enforceUserIsAuthed).use(enforceWorkspaceMember);
 export const workspaceManagerProcedure = t.procedure.use(enforceUserIsAuthed).use(enforceWorkspaceMember).use(enforceWorkspaceManager);
 export const workspaceAdminProcedure   = t.procedure.use(enforceUserIsAuthed).use(enforceWorkspaceMember).use(enforceWorkspaceAdmin);
+export const workspaceOwnerProcedure   = t.procedure.use(enforceUserIsAuthed).use(enforceWorkspaceMember).use(enforceWorkspaceOwner);
