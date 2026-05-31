@@ -4,6 +4,7 @@ import { resolve } from 'path';
 config({ path: resolve(process.cwd(), '.env.local') });
 
 import { PrismaClient } from '@prisma/client';
+import { generateJoinCode } from '../src/lib/joinCode';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,7 @@ async function main() {
   await prisma.announcement.deleteMany();
   await prisma.channel.deleteMany();
   await prisma.note.deleteMany();
+  await prisma.workspaceInviteLink.deleteMany();
   await prisma.invitation.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.workspace.deleteMany();
@@ -43,12 +45,17 @@ async function main() {
   });
   console.log(`✅ Admin user created: ${admin.email}`);
 
+  // Generate a readable join code (e.g. XK9-TZ2)
+  const joinCode = generateJoinCode();
+
   // Create default workspace owned by admin
   const workspace = await prisma.workspace.create({
     data: {
       name: 'My Workspace',
       slug: 'my-workspace',
       ownerId: admin.id,
+      joinCode,
+      joinCodeEnabled: true,
       memberships: {
         create: { userId: admin.id, role: 'OWNER' },
       },
@@ -60,16 +67,20 @@ async function main() {
       },
     },
   });
+
   console.log(`✅ Default workspace created: "${workspace.name}" (slug: ${workspace.slug})`);
+  console.log(`🔑 Workspace join code: ${workspace.joinCode}`);
 
   console.log('\n🎉 Seed completed!');
   console.log('\n─────────────────────────────────────────────────────────');
   console.log('Login credentials:');
-  console.log(`  Email:  ${ADMIN_EMAIL}`);
+  console.log(`  Email:    ${ADMIN_EMAIL}`);
   console.log('  Password: (the one you set in Supabase Auth)');
   console.log('');
-  console.log('After login you will be redirected to /workspaces');
-  console.log(`Your workspace: /w/${workspace.slug}/dashboard`);
+  console.log('After login → /workspaces → select workspace');
+  console.log(`Workspace URL: /w/${workspace.slug}/dashboard`);
+  console.log(`Settings URL:  /w/${workspace.slug}/settings`);
+  console.log(`Join code:     ${workspace.joinCode}`);
   console.log('─────────────────────────────────────────────────────────\n');
 }
 
