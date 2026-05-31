@@ -1,10 +1,14 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Tag, MoreHorizontal } from 'lucide-react';
+import { Calendar, Tag, MoreHorizontal, Trash2 } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { trpc } from '@/lib/trpc/client';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { getPriorityColor, formatDate } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { Task } from '@/types';
 
 interface TaskCardProps {
@@ -28,6 +32,33 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const utils = trpc.useUtils();
+  const { workspaceRole } = useWorkspaceStore();
+  const { data: me } = trpc.users.me.useQuery();
+
+  const canDelete = me && (task.creatorId === me.id || workspaceRole === 'OWNER');
+
+  const deleteTask = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Task deleted');
+      utils.tasks.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
   return (
     <motion.div
       ref={setNodeRef}
@@ -47,12 +78,44 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getPriorityColor(task.priority)}`}>
           {task.priority}
         </span>
-        <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-white p-0.5 rounded"
-          onClick={(e) => { e.stopPropagation(); }}
-        >
-          <MoreHorizontal size={14} />
-        </button>
+
+        {/* Only render the menu button if the user can delete */}
+        {canDelete && (
+          <div className="relative" ref={menuRef}>
+            <button
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-white p-0.5 rounded"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((v) => !v);
+              }}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.1 }}
+                className="absolute right-0 top-6 z-50 w-36 bg-[#0D1F35] border border-[#1E3A5F] rounded-lg shadow-xl overflow-hidden"
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    deleteTask.mutate({ id: task.id });
+                  }}
+                  disabled={deleteTask.isPending}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                  Delete task
+                </button>
+              </motion.div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Title */}

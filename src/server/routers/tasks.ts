@@ -130,6 +130,18 @@ export const tasksRouter = createTRPCRouter({
         where: { id: input.id, workspaceId: ctx.workspaceId },
       });
       if (!existing) throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
+
+      // Only the task creator or the workspace owner can delete
+      const isCreator = existing.creatorId === ctx.dbUser.id;
+      const isOwner   = ctx.dbMembership.role === 'OWNER';
+
+      if (!isCreator && !isOwner) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Only the task creator or workspace owner can delete this task',
+        });
+      }
+
       await ctx.prisma.task.delete({ where: { id: input.id } });
       return { success: true };
     }),

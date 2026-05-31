@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, Calendar, Tag, User } from 'lucide-react';
+import { X, Calendar, Tag, User, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
+import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { toast } from 'sonner';
 import { modalVariants, backdropVariants } from '@/lib/animations';
 import type { Task } from '@/types';
@@ -33,6 +34,14 @@ interface TaskModalProps {
 export function TaskModal({ open, onClose, task, onSuccess }: TaskModalProps) {
   const utils = trpc.useUtils();
   const { data: usersData } = trpc.users.list.useQuery();
+  const { data: me } = trpc.users.me.useQuery();
+  const { workspaceRole } = useWorkspaceStore();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Can delete if current user is the task creator or the workspace owner
+  const canDelete = task && me && (
+    task.creatorId === me.id || workspaceRole === 'OWNER'
+  );
 
   const createTask = trpc.tasks.create.useMutation({
     onSuccess: () => {
@@ -54,6 +63,16 @@ export function TaskModal({ open, onClose, task, onSuccess }: TaskModalProps) {
     onError: (err) => toast.error(err.message),
   });
 
+  const deleteTask = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      toast.success('Task deleted');
+      utils.tasks.list.invalidate();
+      onSuccess?.();
+      onClose();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const {
     register,
     handleSubmit,
@@ -62,6 +81,12 @@ export function TaskModal({ open, onClose, task, onSuccess }: TaskModalProps) {
   } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
   });
+
+  useEffect(() => {
+    if (!open) {
+      setConfirmDelete(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (task) {
@@ -229,24 +254,59 @@ export function TaskModal({ open, onClose, task, onSuccess }: TaskModalProps) {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-border text-zinc-300 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 shimmer-btn text-white font-semibold py-2.5 rounded-lg transition-all duration-200 hover:shadow-glow-primary disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                >
-                  {isLoading ? (
-                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  ) : null}
-                  {task ? 'Update Task' : 'Create Task'}
-                </button>
+              <div className="pt-2 space-y-3">
+                {/* Delete confirmation inline */}
+                {confirmDelete && (
+                  <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+                    <AlertTriangle size={15} className="text-red-400 shrink-0" />
+                    <p className="text-xs text-red-300 flex-1">Delete this task? This cannot be undone.</p>
+                    <button
+                      type="button"
+                      onClick={() => deleteTask.mutate({ id: task!.id })}
+                      disabled={deleteTask.isPending}
+                      className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      {deleteTask.isPending ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-xs text-zinc-400 hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  {/* Delete button — only for creator or owner, only when editing */}
+                  {canDelete && !confirmDelete && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors text-sm"
+                      title="Delete task"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-border text-zinc-300 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1 shimmer-btn text-white font-semibold py-2.5 rounded-lg transition-all duration-200 hover:shadow-glow-primary disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {isLoading ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : null}
+                    {task ? 'Update Task' : 'Create Task'}
+                  </button>
+                </div>
               </div>
             </form>
           </motion.div>
