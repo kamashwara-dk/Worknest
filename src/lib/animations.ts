@@ -121,3 +121,58 @@ export const notificationPanelVariants: Variants = {
     transition: { duration: 0.2 },
   },
 };
+
+// ─── Premium easing curve (used across all new animations) ───────────────────
+// cubic-bezier(0.25, 0.46, 0.45, 0.94) — smooth ease-out, no bounce
+export const EASE_OUT = [0.25, 0.46, 0.45, 0.94] as const;
+// cubic-bezier(0.4, 0, 0.2, 1) — material design standard
+export const EASE_STANDARD = [0.4, 0, 0.2, 1] as const;
+
+// ─── Route transition (login → dashboard) ────────────────────────────────────
+export const routeTransition: Variants = {
+  initial: { opacity: 0, y: 12 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: EASE_OUT },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.22, ease: EASE_STANDARD },
+  },
+};
+
+// ─── Dashboard hero stagger ───────────────────────────────────────────────────
+export const heroContainer: Variants = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
+  },
+};
+
+export const heroGreeting: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: EASE_OUT },
+  },
+};
+
+export const heroQuote: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: EASE_OUT },
+  },
+};
+
+export const heroMeta: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.35, ease: EASE_STANDARD },
+  },
+};

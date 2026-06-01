@@ -5,12 +5,13 @@ import { CheckSquare, Calendar, Users, Plus, TrendingUp } from 'lucide-react';
 import { trpc } from '@/lib/trpc/client';
 import { fadeUp, staggerContainer } from '@/lib/animations';
 import { formatDate, getPriorityColor, getLeaveStatusColor } from '@/lib/utils';
-import { format } from 'date-fns';
 import CountUp from 'react-countup';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend
 } from 'recharts';
 import Link from 'next/link';
+import { DashboardHero } from '@/components/dashboard/DashboardHero';
+import { PageTransition } from '@/components/ui/PageTransition';
 
 const COLORS = ['#178582', '#3B82F6', '#D4B896', '#BFA181'];
 
@@ -53,11 +54,8 @@ export default function DashboardPage() {
   const { data: leavesData } = trpc.leaves.list.useQuery({ status: 'PENDING' });
   const { data: announcementsData } = trpc.announcements.list.useQuery({ pinned: true, limit: 2 });
   const { data: analyticsData } = trpc.analytics.overview.useQuery();
-  trpc.users.list.useQuery(); // prefetch team data
+  trpc.users.list.useQuery();
   const { data: tasksByPriority } = trpc.analytics.tasksByPriority.useQuery();
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const pieData = tasksByPriority?.map((item) => ({
     name: item.priority,
@@ -65,27 +63,15 @@ export default function DashboardPage() {
   })) ?? [];
 
   return (
-    <motion.div
-      variants={staggerContainer}
-      initial="hidden"
-      animate="visible"
-      className="max-w-7xl mx-auto space-y-6"
-    >
-      {/* Welcome banner */}
+    <PageTransition>
       <motion.div
-        variants={fadeUp}
-        className="glass-card rounded-2xl p-6 relative overflow-hidden"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+        className="max-w-7xl mx-auto space-y-6"
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none" />
-        <div className="relative z-10">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-white mb-1">
-            {greeting}, {meData?.name?.split(' ')[0]} 👋
-          </h1>
-          <p className="text-zinc-400">
-            {format(new Date(), 'EEEE, MMMM d, yyyy')} · Here&apos;s what&apos;s happening today
-          </p>
-        </div>
-      </motion.div>
+        {/* Hero — staggered greeting + motivational quote */}
+        <DashboardHero name={meData?.name} />
 
       {/* KPI Cards */}
       <motion.div
@@ -269,5 +255,6 @@ export default function DashboardPage() {
         <Plus size={20} className="text-white" />
       </Link>
     </motion.div>
+    </PageTransition>
   );
 }

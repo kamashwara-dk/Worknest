@@ -11,6 +11,7 @@ import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { scaleIn, fadeUp, staggerContainer } from '@/lib/animations';
+import { PageTransition } from '@/components/ui/PageTransition';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -104,6 +105,7 @@ export default function LoginPage() {
   };
 
   return (
+    <PageTransition>
     <div className="min-h-screen bg-background flex">
       {/* Left brand panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-surface items-center justify-center p-12">
@@ -310,5 +312,6 @@ export default function LoginPage() {
         </motion.div>
       </div>
     </div>
+    </PageTransition>
   );
 }
