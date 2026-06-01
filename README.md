@@ -19,6 +19,9 @@ A full-featured, multi-tenant internal productivity platform. Teams create priva
 | **Optimistic Chat** | Messages appear instantly in the UI before the server confirms — with automatic rollback on error. |
 | **Task Delete Permissions** | Only the task creator or workspace owner can delete a task. |
 | **Leave / Delete Workspace** | Members can leave; owners can permanently delete (requires typing the name to confirm). |
+| **Feedback Space** | Chat-style feedback widget on the landing page — visitors drop thoughts in real time. |
+| **Developer Footer** | Clean footer with developer profile picture, name, and social links. |
+| **PWA Support** | Installable on mobile home screens via Web App Manifest + Service Worker. |
 
 ---
 
@@ -217,6 +220,44 @@ npm run db:studio    # Prisma Studio GUI
 npm run test         # Unit tests
 npm run test:e2e     # Playwright e2e tests
 ```
+
+---
+
+## PWA — Install on Mobile Home Screen
+
+WorkNest ships with a Web App Manifest and Service Worker so it can be installed as a native-feeling app on any mobile device.
+
+### What's included
+| File | Purpose |
+|------|---------|
+| `public/manifest.json` | App name, icons, theme colour, start URL |
+| `public/sw.js` | Caches static assets, serves offline fallback |
+| `src/app/layout.tsx` | Registers SW, adds `<meta>` tags for iOS/Android |
+
+### Steps to install
+
+**Android (Chrome)**
+1. Open `https://worknest-ai.vercel.app` in Chrome
+2. Tap the **⋮ menu → "Add to Home screen"**
+3. Confirm — the WorkNest icon appears on your home screen
+
+**iOS (Safari)**
+1. Open the URL in Safari
+2. Tap the **Share button (□↑) → "Add to Home Screen"**
+3. Tap **Add** — the app opens full-screen without browser chrome
+
+**Desktop (Chrome / Edge)**
+1. Look for the **install icon (⊕)** in the address bar
+2. Click **Install** — WorkNest opens as a standalone window
+
+### Icon requirements
+The manifest references `icon-192.png` and `icon-512.png`. Generate them from `worknest-icon.svg`:
+```bash
+# Using Inkscape CLI (or any SVG→PNG converter)
+inkscape -w 192 -h 192 public/worknest-icon.svg -o public/icon-192.png
+inkscape -w 512 -h 512 public/worknest-icon.svg -o public/icon-512.png
+```
+Or use an online tool like [realfavicongenerator.net](https://realfavicongenerator.net).
 
 ---
 

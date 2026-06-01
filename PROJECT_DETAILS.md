@@ -633,7 +633,54 @@ npm run test:e2e     # Run Playwright e2e tests
 
 ---
 
-## 20. Future Scope
+## 20. Landing Page & PWA
+
+### Feedback Space
+The mock testimonials section has been replaced with a live **Feedback Space** — a chat-style widget (`src/components/landing/FeedbackSpace.tsx`) where visitors can drop thoughts about WorkNest directly on the landing page.
+
+Features:
+- Three seed messages pre-populate the chat so it never looks empty
+- Visitors enter an optional name, pick an emoji reaction, and type a message
+- Messages animate in with Framer Motion and auto-scroll to the latest
+- Emoji picker with 8 options (no external dependency)
+- Character limit (200) and "just now / Xm ago" relative timestamps
+- Fully client-side — no backend required; messages persist for the session
+
+### Developer Footer
+`src/components/landing/DeveloperFooter.tsx` replaces the generic link-grid footer with a personal credit section:
+- Profile picture (`/public/profile.png`) with a green online indicator
+- Developer name: **Kamashwara D K**
+- Role tagline and tech stack
+- GitHub and LinkedIn social links
+- WorkNest brand mark on desktop
+- Bottom bar with copyright and Sign In / Get Started links
+
+### PWA (Progressive Web App)
+
+WorkNest is installable as a home-screen app on any mobile device.
+
+**Files added:**
+
+| File | Description |
+|------|-------------|
+| `public/manifest.json` | Web App Manifest — name, icons, theme colour `#178582`, `start_url: /workspaces`, `display: standalone` |
+| `public/sw.js` | Service Worker — pre-caches landing page and static assets, serves offline fallback, skips tRPC/Supabase API calls |
+| `src/app/layout.tsx` | Registers SW via inline script, adds `apple-mobile-web-app-capable` and `theme-color` meta tags, exports `viewport` config |
+
+**Install steps:**
+- **Android Chrome** — ⋮ menu → "Add to Home screen"
+- **iOS Safari** — Share (□↑) → "Add to Home Screen"
+- **Desktop Chrome/Edge** — ⊕ icon in address bar → Install
+
+**Icon generation** (required for full PWA score):
+```bash
+inkscape -w 192 -h 192 public/worknest-icon.svg -o public/icon-192.png
+inkscape -w 512 -h 512 public/worknest-icon.svg -o public/icon-512.png
+```
+
+---
+
+## 21. Future Scope
 
 ### Near-term
 - **Video Conferencing** — Embed Jitsi Meet for in-app video calls
