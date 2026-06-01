@@ -10,6 +10,8 @@ import { DeveloperFooter } from '@/components/landing/DeveloperFooter';
 
 export default function LandingPage() {
   const [scrollProgress, setScrollProgress] = useState(0);
+
+  // Detect OAuth redirect — show spinner and bounce to /auth/callback
   const [redirecting] = useState(() => {
     if (typeof window !== 'undefined') {
       return new URLSearchParams(window.location.search).has('code');
@@ -17,7 +19,6 @@ export default function LandingPage() {
     return false;
   });
 
-  // Handle OAuth code landing on root path
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
@@ -29,15 +30,27 @@ export default function LandingPage() {
     }
   }, []);
 
+  // Scroll progress bar — passive listener, no scroll side-effects
   useEffect(() => {
     if (redirecting) return;
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
-      setScrollProgress(progress);
+      setScrollProgress(totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, [redirecting]);
+
+  // ── FIX: reset scroll position to top on every mount ──────────────────────
+  // Prevents browser scroll-restoration from jumping to a previous position,
+  // and cancels any hash-driven scroll that may have been queued.
+  useEffect(() => {
+    if (redirecting) return;
+    // Use requestAnimationFrame so it runs after the browser's own scroll-restore
+    const id = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    });
+    return () => cancelAnimationFrame(id);
   }, [redirecting]);
 
   if (redirecting) {
@@ -54,15 +67,22 @@ export default function LandingPage() {
   return (
     <main className="bg-background">
       {/* Scroll progress bar */}
-      <div id="scroll-progress" style={{ width: `${scrollProgress}%` }} />
+      <div
+        id="scroll-progress"
+        style={{ width: `${scrollProgress}%` }}
+        aria-hidden="true"
+      />
 
       <Navbar />
       <HeroSection />
 
-      {/* Features section anchor */}
-      <div id="features">
-        <FeaturesSection />
-      </div>
+      {/*
+        FIX: Do NOT wrap FeaturesSection in another <div id="features">.
+        FeaturesSection already has id="features" on its own <section>.
+        A duplicate id causes the browser to scroll to it on load when
+        the Navbar renders the href="#features" link.
+      */}
+      <FeaturesSection />
 
       {/* Analytics preview */}
       <section className="relative py-24 bg-background overflow-hidden">

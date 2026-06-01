@@ -52,6 +52,7 @@ export function CTASection() {
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your work email"
+                  tabIndex={-1}
                   className="w-full pl-9 pr-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:border-white/40 backdrop-blur-sm"
                   required
                 />
