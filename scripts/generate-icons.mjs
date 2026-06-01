@@ -1,31 +1,39 @@
 /**
- * Generates icon-192.png and icon-512.png from the worknest-icon SVG data.
+ * Generates icon-192.png and icon-512.png from worknest-icon.svg using sharp.
  * Run: node scripts/generate-icons.mjs
- * Requires no external tools — uses pure Node.js Buffer to write minimal PNGs.
- *
- * For production-quality icons, replace these with a proper SVG→PNG tool
- * (e.g. sharp, puppeteer, or realfavicongenerator.net).
- *
- * This script writes placeholder PNGs that satisfy the PWA manifest requirement
- * so Lighthouse stops flagging missing icons.
  */
 
-import { writeFileSync } from 'fs';
+import sharp from 'sharp';
+import { readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(__dirname, '..', 'public');
 
-// Minimal valid 1×1 PNG (will be replaced by a real icon generator)
-// This is a 1×1 teal (#178582) pixel PNG — enough to pass manifest validation.
-const TEAL_1PX_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-  'base64'
-);
+// Read the SVG
+const svgPath = resolve(publicDir, 'worknest-icon.svg');
+const svgContent = readFileSync(svgPath, 'utf8');
 
-writeFileSync(resolve(publicDir, 'icon-192.png'), TEAL_1PX_PNG);
-writeFileSync(resolve(publicDir, 'icon-512.png'), TEAL_1PX_PNG);
+// The SVG is 32×32 — we need to scale it up cleanly.
+// Replace width/height so sharp renders at the target size.
+async function generateIcon(size) {
+  const scaledSvg = svgContent
+    .replace(/width="32"/, `width="${size}"`)
+    .replace(/height="32"/, `height="${size}"`)
+    .replace(/viewBox="0 0 32 32"/, `viewBox="0 0 32 32"`); // keep viewBox
 
-console.log('✅ Placeholder icons written to public/icon-192.png and public/icon-512.png');
-console.log('   Replace with real icons using: npx sharp-cli or realfavicongenerator.net');
+  const buffer = Buffer.from(scaledSvg);
+
+  await sharp(buffer, { density: 300 })
+    .resize(size, size)
+    .png()
+    .toFile(resolve(publicDir, `icon-${size}.png`));
+
+  console.log(`✅ icon-${size}.png generated (${size}×${size})`);
+}
+
+await generateIcon(192);
+await generateIcon(512);
+
+console.log('\n🎉 PWA icons ready in public/');
