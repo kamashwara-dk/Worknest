@@ -680,56 +680,47 @@ inkscape -w 512 -h 512 public/worknest-icon.svg -o public/icon-512.png
 
 ---
 
-## 21. Admin Feedback Architecture
+## 21. Admin Feedback System & Auth State Fix
 
-### Overview
-Feedback is no longer a client-side-only widget on the public landing page. It is now a fully persisted, authenticated system:
+### Feedback Architecture
+
+The client-side `FeedbackSpace` widget (previously on the landing page) has been replaced with a **persistent, authenticated feedback system**:
 
 | Layer | Detail |
 |-------|--------|
-| **Schema** | New `Feedback` model — `id, userId, message, emoji, createdAt`. Linked to `User` via `userId`. |
+| **Schema** | New `Feedback` model — `id, userId, message, emoji, createdAt`. Scoped to the authenticated user via `userId → User`. |
 | **Backend** | `feedback` tRPC router with three procedures: `submit` (any authenticated user), `list` (super admin, cursor-paginated), `delete` (super admin) |
-| **User UI** | `FeedbackWidget` component embedded in the authenticated dashboard — users submit feedback with an emoji + message |
-| **Admin UI** | `/admin/feedback` page — super admins read all submissions with user name, email, avatar, timestamp, and a delete button |
-| **Sidebar** | "Admin Feedback" link with `ShieldCheck` icon appears in the sidebar only when `meData.isSuperAdmin === true` |
+| **Dashboard widget** | `FeedbackWidget` component embedded in the user dashboard. Users pick an emoji, type a message (max 500 chars), and submit. Shows a success state on completion. |
+| **Admin page** | `/admin/feedback` — super admin reads all submissions with user name, email, avatar, emoji, message, and relative timestamp. Supports load-more pagination and per-item delete. |
+| **Sidebar** | "Admin Feedback" link with `ShieldCheck` icon appears in the sidebar only when `meData.isSuperAdmin === true`. |
 
-### Note on "Flask backend"
-This project uses **Next.js API routes + tRPC** as its backend — not Flask. The `feedback` tRPC router (`src/server/routers/feedback.ts`) is the equivalent of a Flask route. It validates input with Zod, enforces auth via `protectedProcedure` / `superAdminProcedure`, and writes to PostgreSQL via Prisma.
+**Note on "Flask backend":** This project uses Next.js API routes + tRPC as its backend — not a separate Flask server. The feedback API is implemented as a tRPC router at `src/server/routers/feedback.ts`, served via `/api/trpc`.
 
----
+### Auth State Fix
 
-## 22. Landing Page & Auth Fixes
-
-### Navbar cleanup
-Removed dead anchor links (`#team`, `#pricing`) that had no corresponding page sections. These were causing the browser to auto-scroll on load when the URL contained a hash. The navbar now only links to real routes: `#features` (with a matching `id="features"` wrapper on `FeaturesSection`) and `/login`.
-
-### Auto-scroll bug fix
-Root cause: `FeedbackSpace` called `bottomRef.current?.scrollIntoView()` inside a `useEffect` on mount, which fired immediately and scrolled the page to the bottom. Fix: `FeedbackSpace` was removed from the landing page entirely. Feedback is now inside the authenticated dashboard only.
-
-### FeedbackSpace removed from landing
-The public `FeedbackSpace` component (client-side only, no persistence) has been removed from the landing page. The landing page now renders: `Navbar → HeroSection → FeaturesSection → Analytics preview → CTASection → DeveloperFooter`.
-
-### Developer Footer redesign
-`DeveloperFooter` is now larger and high-contrast:
-- Profile photo: 128×128px with a teal `ring-4` glow
-- Name: `text-4xl sm:text-5xl` font-display, full white
-- Tech stack badges row
-- GitHub + LinkedIn buttons with hover glow
-- Background: `#030B14` (near-black) with a `border-t-2 border-[#178582]/40` accent line
-
-### Auth state fix
 **Problem:** Logging in or out required a hard browser refresh to update the UI.
 
-**Solution:** Added `useAuthStore` (Zustand) + `AuthProvider`:
-- `src/store/useAuthStore.ts` — Zustand store holding `user` and `loading`. `initAuthListener()` calls `supabase.auth.getUser()` on mount and subscribes to `onAuthStateChange` for all future events.
-- `src/components/providers/AuthProvider.tsx` — mounts the listener once via `useEffect` at the root layout level.
-- `src/app/layout.tsx` — wraps children with `<AuthProvider>` inside `<TRPCProvider>`.
+**Root cause:** The app relied on server-side session checks (Supabase SSR) but had no client-side reactive auth state. After `signIn()` or `signOut()`, the React tree didn't know the session had changed.
 
-Any component can now call `useAuthStore((s) => s.user)` to get the current session reactively — no refresh needed.
+**Solution:**
+- `src/store/useAuthStore.ts` — Zustand store holding `{ user, loading }`. `initAuthListener()` calls `supabase.auth.onAuthStateChange()` and updates the store on every session event.
+- `src/components/providers/AuthProvider.tsx` — mounts the listener once at the root via `useEffect`. Returns the unsubscribe function on cleanup.
+- `src/app/layout.tsx` — wraps the app in `<AuthProvider>` so the listener is active on every page.
+
+Result: login/logout/token-refresh all update the UI instantly without any `router.refresh()` or hard reload.
+
+### Landing Page Cleanup
+
+| Change | Detail |
+|--------|--------|
+| **Navbar** | Removed dead anchor links (`#team`, `#pricing`) that caused auto-scroll on load. Kept only `Features` (→ `#features`) and `Login`. |
+| **Auto-scroll bug** | The `FeedbackSpace` component called `scrollIntoView()` on its `bottomRef` on mount, scrolling the page to the bottom. Fixed by removing `FeedbackSpace` from the landing page entirely. |
+| **Mock reviews** | All hardcoded seed messages (Arjun M., Divya R., Kiran S.) removed — the landing page no longer shows fake testimonials. |
+| **Developer Footer** | Redesigned to be larger and high-contrast: 128×128 profile photo with teal ring glow, 4xl/5xl name heading, tech stack badges, larger social buttons, dark `#030B14` background. |
 
 ---
 
-## 23. Future Scope
+## 22. Future Scope
 
 ### Near-term
 - **Video Conferencing** — Embed Jitsi Meet for in-app video calls
