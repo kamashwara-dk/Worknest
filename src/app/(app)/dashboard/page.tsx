@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { DashboardHero } from '@/components/dashboard/DashboardHero';
+import { FeedbackWidget } from '@/components/dashboard/FeedbackWidget';
 import { PageTransition } from '@/components/ui/PageTransition';
 
 const COLORS = ['#178582', '#3B82F6', '#D4B896', '#BFA181'];
@@ -254,6 +255,11 @@ export default function DashboardPage() {
       >
         <Plus size={20} className="text-white" />
       </Link>
+
+      {/* Feedback widget — authenticated users submit feedback */}
+      <motion.div variants={fadeUp} className="max-w-lg">
+        <FeedbackWidget />
+      </motion.div>
     </motion.div>
     </PageTransition>
   );

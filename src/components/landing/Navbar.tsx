@@ -5,10 +5,9 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 
+// Only real routes — no dead anchor links that cause auto-scroll
 const navLinks = [
   { label: 'Features', href: '#features' },
-  { label: 'Team', href: '#team' },
-  { label: 'Pricing', href: '#pricing' },
   { label: 'Login', href: '/login' },
 ];
 
@@ -18,9 +17,15 @@ export function Navbar() {
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
 
   return (
     <motion.nav
@@ -28,13 +33,15 @@ export function Navbar() {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'backdrop-blur-xl bg-[#0A1828]/80 border-b border-[#1E3A5F] shadow-lg' : 'bg-transparent'
+        scrolled
+          ? 'backdrop-blur-xl bg-[#0A1828]/80 border-b border-[#1E3A5F] shadow-lg'
+          : 'bg-transparent'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group" onClick={() => setMobileOpen(false)}>
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#178582] to-[#0D5250] flex items-center justify-center shadow-[0_0_16px_rgba(23,133,130,0.4)]">
               <span className="font-display font-bold text-white text-sm">W</span>
             </div>
@@ -46,7 +53,11 @@ export function Navbar() {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <Link key={link.label} href={link.href} className="text-sm text-[#7A9BBF] hover:text-[#E8F0F8] transition-colors duration-200">
+              <Link
+                key={link.label}
+                href={link.href}
+                className="text-sm text-[#7A9BBF] hover:text-[#E8F0F8] transition-colors duration-200"
+              >
                 {link.label}
               </Link>
             ))}
@@ -59,7 +70,12 @@ export function Navbar() {
           </div>
 
           {/* Mobile hamburger */}
-          <button className="md:hidden text-[#7A9BBF] hover:text-[#E8F0F8] transition-colors" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu">
+          <button
+            className="md:hidden text-[#7A9BBF] hover:text-[#E8F0F8] transition-colors"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-label="Toggle menu"
+            aria-expanded={mobileOpen}
+          >
             {mobileOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
@@ -72,16 +88,25 @@ export function Navbar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="md:hidden overflow-hidden backdrop-blur-xl bg-[#0A1828]/90 border-b border-[#1E3A5F]"
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="md:hidden overflow-hidden backdrop-blur-xl bg-[#0A1828]/95 border-b border-[#1E3A5F]"
           >
-            <div className="px-4 py-4 flex flex-col gap-4">
+            <div className="px-4 py-4 flex flex-col gap-3">
               {navLinks.map((link) => (
-                <Link key={link.label} href={link.href} className="text-[#B8D0E8] hover:text-[#E8F0F8] transition-colors py-2" onClick={() => setMobileOpen(false)}>
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className="text-[#B8D0E8] hover:text-[#E8F0F8] transition-colors py-2 text-sm"
+                  onClick={() => setMobileOpen(false)}
+                >
                   {link.label}
                 </Link>
               ))}
-              <Link href="/register" className="shimmer-btn text-white text-sm font-semibold px-5 py-3 rounded-lg text-center" onClick={() => setMobileOpen(false)}>
+              <Link
+                href="/register"
+                className="shimmer-btn text-white text-sm font-semibold px-5 py-3 rounded-lg text-center mt-1"
+                onClick={() => setMobileOpen(false)}
+              >
                 Get Started Free
               </Link>
             </div>

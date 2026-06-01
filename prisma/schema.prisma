@@ -51,6 +51,9 @@ model User {
   // Global announcements (super admin only)
   globalAnnouncements GlobalAnnouncement[]
 
+  // Feedback submissions
+  feedbacks Feedback[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -172,6 +175,17 @@ model Note {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─── Feedback (authenticated users, read by super admin) ─────────────────────
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String   @db.Text
+  emoji     String   @default("💬")
+  createdAt DateTime @default(now())
 }
 
 // ─── GlobalAnnouncement (system-wide, super admin only) ──────────────────────

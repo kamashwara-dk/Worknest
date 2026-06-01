@@ -22,6 +22,8 @@ A full-featured, multi-tenant internal productivity platform. Teams create priva
 | **Feedback Space** | Chat-style feedback widget on the landing page — visitors drop thoughts in real time. |
 | **Developer Footer** | Clean footer with developer profile picture, name, and social links. |
 | **PWA Support** | Installable on mobile home screens via Web App Manifest + Service Worker. |
+| **Admin Feedback System** | Authenticated users submit feedback from the dashboard. Super Admins read all submissions at `/admin/feedback`. |
+| **Auth State Fix** | Zustand `useAuthStore` + `AuthProvider` — login/logout updates the UI instantly without a hard refresh. |
 
 ---
 

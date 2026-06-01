@@ -10,6 +10,7 @@ import { analyticsRouter } from './analytics';
 import { workspacesRouter } from './workspaces';
 import { invitationsRouter } from './invitations';
 import { notesRouter } from './notes';
+import { feedbackRouter } from './feedback';
 
 export const appRouter = createTRPCRouter({
   tasks: tasksRouter,
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   workspaces: workspacesRouter,
   invitations: invitationsRouter,
   notes: notesRouter,
+  feedback: feedbackRouter,
 });
 
 export type AppRouter = typeof appRouter;

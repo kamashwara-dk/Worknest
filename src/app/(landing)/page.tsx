@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import { Navbar } from '@/components/landing/Navbar';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { FeaturesSection } from '@/components/landing/FeaturesSection';
-import { FeedbackSpace } from '@/components/landing/FeedbackSpace';
 import { CTASection } from '@/components/landing/CTASection';
 import { DeveloperFooter } from '@/components/landing/DeveloperFooter';
 
@@ -24,7 +23,9 @@ export default function LandingPage() {
     const code = params.get('code');
     if (code) {
       const next = params.get('next') ?? '/dashboard';
-      window.location.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`);
+      window.location.replace(
+        `/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`
+      );
     }
   }, []);
 
@@ -57,7 +58,11 @@ export default function LandingPage() {
 
       <Navbar />
       <HeroSection />
-      <FeaturesSection />
+
+      {/* Features section anchor */}
+      <div id="features">
+        <FeaturesSection />
+      </div>
 
       {/* Analytics preview */}
       <section className="relative py-24 bg-background overflow-hidden">
@@ -76,7 +81,8 @@ export default function LandingPage() {
                 Real-time insights for smarter decisions
               </h2>
               <p className="text-zinc-400 text-lg mb-8 leading-relaxed">
-                Track task completion rates, team activity patterns, leave distributions, and productivity trends — all in one beautiful dashboard.
+                Track task completion rates, team activity patterns, leave distributions, and
+                productivity trends — all in one beautiful dashboard.
               </p>
               <ul className="space-y-3">
                 {[
@@ -133,9 +139,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* Feedback Space — replaces mock testimonials */}
-      <FeedbackSpace />
 
       <CTASection />
       <DeveloperFooter />

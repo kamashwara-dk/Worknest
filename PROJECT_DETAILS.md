@@ -680,7 +680,56 @@ inkscape -w 512 -h 512 public/worknest-icon.svg -o public/icon-512.png
 
 ---
 
-## 21. Future Scope
+## 21. Admin Feedback Architecture
+
+### Overview
+Feedback is no longer a client-side-only widget on the public landing page. It is now a fully persisted, authenticated system:
+
+| Layer | Detail |
+|-------|--------|
+| **Schema** | New `Feedback` model — `id, userId, message, emoji, createdAt`. Linked to `User` via `userId`. |
+| **Backend** | `feedback` tRPC router with three procedures: `submit` (any authenticated user), `list` (super admin, cursor-paginated), `delete` (super admin) |
+| **User UI** | `FeedbackWidget` component embedded in the authenticated dashboard — users submit feedback with an emoji + message |
+| **Admin UI** | `/admin/feedback` page — super admins read all submissions with user name, email, avatar, timestamp, and a delete button |
+| **Sidebar** | "Admin Feedback" link with `ShieldCheck` icon appears in the sidebar only when `meData.isSuperAdmin === true` |
+
+### Note on "Flask backend"
+This project uses **Next.js API routes + tRPC** as its backend — not Flask. The `feedback` tRPC router (`src/server/routers/feedback.ts`) is the equivalent of a Flask route. It validates input with Zod, enforces auth via `protectedProcedure` / `superAdminProcedure`, and writes to PostgreSQL via Prisma.
+
+---
+
+## 22. Landing Page & Auth Fixes
+
+### Navbar cleanup
+Removed dead anchor links (`#team`, `#pricing`) that had no corresponding page sections. These were causing the browser to auto-scroll on load when the URL contained a hash. The navbar now only links to real routes: `#features` (with a matching `id="features"` wrapper on `FeaturesSection`) and `/login`.
+
+### Auto-scroll bug fix
+Root cause: `FeedbackSpace` called `bottomRef.current?.scrollIntoView()` inside a `useEffect` on mount, which fired immediately and scrolled the page to the bottom. Fix: `FeedbackSpace` was removed from the landing page entirely. Feedback is now inside the authenticated dashboard only.
+
+### FeedbackSpace removed from landing
+The public `FeedbackSpace` component (client-side only, no persistence) has been removed from the landing page. The landing page now renders: `Navbar → HeroSection → FeaturesSection → Analytics preview → CTASection → DeveloperFooter`.
+
+### Developer Footer redesign
+`DeveloperFooter` is now larger and high-contrast:
+- Profile photo: 128×128px with a teal `ring-4` glow
+- Name: `text-4xl sm:text-5xl` font-display, full white
+- Tech stack badges row
+- GitHub + LinkedIn buttons with hover glow
+- Background: `#030B14` (near-black) with a `border-t-2 border-[#178582]/40` accent line
+
+### Auth state fix
+**Problem:** Logging in or out required a hard browser refresh to update the UI.
+
+**Solution:** Added `useAuthStore` (Zustand) + `AuthProvider`:
+- `src/store/useAuthStore.ts` — Zustand store holding `user` and `loading`. `initAuthListener()` calls `supabase.auth.getUser()` on mount and subscribes to `onAuthStateChange` for all future events.
+- `src/components/providers/AuthProvider.tsx` — mounts the listener once via `useEffect` at the root layout level.
+- `src/app/layout.tsx` — wraps children with `<AuthProvider>` inside `<TRPCProvider>`.
+
+Any component can now call `useAuthStore((s) => s.user)` to get the current session reactively — no refresh needed.
+
+---
+
+## 23. Future Scope
 
 ### Near-term
 - **Video Conferencing** — Embed Jitsi Meet for in-app video calls

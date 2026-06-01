@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CheckSquare, MessageSquare, Calendar,
   FileText, Users, Megaphone, BarChart3, User, ChevronLeft,
-  ChevronRight, X, StickyNote, Building2, ChevronDown, Settings, LogOut,
+  ChevronRight, X, StickyNote, Building2, ChevronDown, Settings, LogOut, ShieldCheck,
 } from 'lucide-react';
 import { useUIStore } from '@/store/useUIStore';
 import { useChatStore } from '@/store/useChatStore';
@@ -43,6 +43,7 @@ function SidebarContent({ collapsed, onNavClick }: { collapsed: boolean; onNavCl
 
   const navItems = useNavItems(workspaceSlug ?? '');
   const totalUnreadChat = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+  const isSuperAdmin = meData?.isSuperAdmin ?? false;
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -190,6 +191,36 @@ function SidebarContent({ collapsed, onNavClick }: { collapsed: boolean; onNavCl
             )}
           </AnimatePresence>
         </Link>
+
+        {/* Admin Feedback — super admin only */}
+        {isSuperAdmin && (
+          <Link
+            href="/admin/feedback"
+            title={collapsed ? 'Admin Feedback' : undefined}
+            onClick={onNavClick}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative',
+              pathname === '/admin/feedback'
+                ? 'bg-primary/10 text-primary border-l-2 border-primary'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5',
+              collapsed && 'justify-center px-2'
+            )}
+          >
+            <ShieldCheck size={18} className="flex-shrink-0" />
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  className="text-sm font-medium overflow-hidden whitespace-nowrap flex-1"
+                >
+                  Admin Feedback
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Link>
+        )}
       </nav>
 
       {/* User info at bottom */}

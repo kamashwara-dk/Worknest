@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Syne, DM_Sans } from 'next/font/google';
 import './globals.css';
 import { TRPCProvider } from '@/lib/trpc/provider';
+import { AuthProvider } from '@/components/providers/AuthProvider';
 import { Toaster } from 'sonner';
 
 const syne = Syne({ subsets: ['latin'], variable: '--font-syne', display: 'swap' });
@@ -49,7 +50,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans bg-[#0A1828] text-[#E8F0F8] antialiased">
         <TRPCProvider>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
           <Toaster
             theme="dark"
             position="bottom-right"
