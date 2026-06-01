@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, CheckSquare, MessageSquare, Calendar,
   FileText, Users, Megaphone, BarChart3, User, ChevronLeft,
-  ChevronRight, X, StickyNote, Building2, ChevronDown, Settings,
+  ChevronRight, X, StickyNote, Building2, ChevronDown, Settings, LogOut,
 } from 'lucide-react';
 import { useUIStore } from '@/store/useUIStore';
 import { useChatStore } from '@/store/useChatStore';
@@ -15,6 +15,8 @@ import { useWorkspaceStore } from '@/store/useWorkspaceStore';
 import { cn } from '@/lib/utils';
 import { drawerVariants, sidebarVariants } from '@/lib/animations';
 import { trpc } from '@/lib/trpc/client';
+import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 function useNavItems(slug: string) {
   const base = `/w/${slug}`;
@@ -31,7 +33,7 @@ function useNavItems(slug: string) {
   ];
 }
 
-function SidebarContent({ collapsed }: { collapsed: boolean }) {
+function SidebarContent({ collapsed, onNavClick }: { collapsed: boolean; onNavClick?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { unreadCounts } = useChatStore();
@@ -41,6 +43,14 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
 
   const navItems = useNavItems(workspaceSlug ?? '');
   const totalUnreadChat = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    toast.success('Signed out');
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -88,6 +98,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
+              onClick={onNavClick}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
                 isActive
@@ -128,6 +139,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         <Link
           href="/notes"
           title={collapsed ? 'My Notes' : undefined}
+          onClick={onNavClick}
           className={cn(
             'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative',
             pathname === '/notes'
@@ -155,6 +167,7 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
         <Link
           href="/profile"
           title={collapsed ? 'Profile' : undefined}
+          onClick={onNavClick}
           className={cn(
             'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative',
             pathname === '/profile'
@@ -197,15 +210,26 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: 'auto' }}
                   exit={{ opacity: 0, width: 0 }}
-                  className="overflow-hidden"
+                  className="overflow-hidden flex-1 min-w-0"
                 >
-                  <p className="text-sm font-medium text-white truncate max-w-[140px]">{meData.name}</p>
-                  <p className="text-xs text-zinc-500 truncate max-w-[140px] capitalize">
+                  <p className="text-sm font-medium text-white truncate max-w-[100px]">{meData.name}</p>
+                  <p className="text-xs text-zinc-500 truncate max-w-[100px] capitalize">
                     {useWorkspaceStore.getState().workspaceRole?.toLowerCase() ?? meData.role.toLowerCase()}
                   </p>
                 </motion.div>
               )}
             </AnimatePresence>
+            {/* Logout — always visible on mobile (onNavClick is set), hidden on collapsed desktop */}
+            {!collapsed && (
+              <button
+                onClick={handleLogout}
+                className="flex-shrink-0 p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -260,7 +284,7 @@ export function Sidebar() {
               >
                 <X size={20} />
               </button>
-              <SidebarContent collapsed={false} />
+              <SidebarContent collapsed={false} onNavClick={() => setSidebarOpen(false)} />
             </motion.aside>
           </>
         )}
